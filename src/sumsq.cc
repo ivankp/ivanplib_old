@@ -37,14 +37,17 @@ int main(int argc, char const *argv[]) {
   std::vector<double> v3 {-3.,-2.,-1.5};
 
   auto svs1 = sq(v1,v2);
+  print_type( svs1 )
   for (auto x : svs1) cout << ' ' << x;
   cout << endl << endl;
 
   auto svs2 = sq(v1,v2,v3);
+  print_type( svs2 )
   for (auto x : svs2) cout << ' ' << x;
   cout << endl << endl;
 
   add_sq(svs2,2,3);
+  print_type( svs2 )
   for (auto x : svs2) cout << ' ' << x;
   cout << endl << endl;
   // ------------------------------------------------------
@@ -54,31 +57,32 @@ int main(int argc, char const *argv[]) {
   std::array<double,3> a3 {-3.,-2.,-1.5};
 
   auto sas1 = sq(a1,a2);
+  print_type( sas1 )
   for (auto x : sas1) cout << ' ' << x;
   cout << endl << endl;
 
   auto sas2 = sq(a1,a2,a3);
+  print_type( sas2 )
   for (auto x : sas2) cout << ' ' << x;
   cout << endl;
 
+  print_type( sq(a1,a2) )
   for (auto x : sq(a1,a2)) cout << ' ' << x;
   cout << endl;
 
+  print_type( sq(a1,a2,v1,2,3.5) )
   for (auto x : sq(a1,a2,v1,2,3.5)) cout << ' ' << x;
   cout << endl;
 
-  add_sq(sas1,v1,2,3.5);
+  print_type( quad_sum(a1,a2,v1,2,3.5) )
+  for (auto x : quad_sum(a1,a2,v1,2,3.5)) cout << ' ' << x;
+  cout << endl;
+
+  add_sq(sas1,2,v1,3.5);
+  print_type( sas1 )
   for (auto x : sas1) cout << ' ' << x;
   cout << endl << endl;
   // ------------------------------------------------------
-
-  print_type( sq(a1,a2,v1,2,3) )
-  print_type( sq(a1,a2,v1,2,-3) )
-  print_type( sq(a1,a2,v1,2,3.5) )
-  print_type( sq(v1,a1,2.f,3) )
-  print_type( sq(v1,a1,2.f,3) )
-
-  print_type( (common_t<float,int>()) )
 
   return 0;
 }

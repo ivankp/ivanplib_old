@@ -46,34 +46,6 @@ template <typename... A>
 using enable_if_all_arithmetic_common_t
   = enable_if_all_arithmetic_t<common_t<A...>,A...>;
 
-// container traits
-
-template<typename T>
-struct is_std_vector: std::false_type { };
-
-template<typename T, typename Alloc>
-struct is_std_vector<std::vector<T,Alloc>>: std::true_type { };
-
-template<typename T>
-struct is_std_array: std::false_type { };
-
-template<typename T, size_t N>
-struct is_std_array<std::array<T,N>>: std::true_type { };
-
-// data type
-
-template <typename T>
-struct data_type { using type = T; };
-
-template <typename T, typename Alloc>
-struct data_type<std::vector<T,Alloc>> { using type = T; };
-
-template <typename T, size_t N>
-struct data_type<std::array<T,N>> { using type = T; };
-
-template <typename... TT>
-using common_data_t = common_t<typename data_type<TT>::type...>;
-
 // Arithmetic types ---------------------------------------
 // pass by value
 
@@ -174,8 +146,17 @@ add_sq(std::vector<T,Alloc>& sum2, const std::array<In,N>& in) {
 
 // Variadic add_sq ----------------------------------------
 
-template <bool... TT> struct bool_test;
-template <typename... TT> struct type_test;
+template<typename T>
+struct is_std_vector: std::false_type { };
+
+template<typename T, typename Alloc>
+struct is_std_vector<std::vector<T,Alloc>>: std::true_type { };
+
+template<typename T>
+struct is_std_array: std::false_type { };
+
+template<typename T, size_t N>
+struct is_std_array<std::array<T,N>>: std::true_type { };
 
 // Add arithmetics to containers
 template <typename Sum, typename... TT>
@@ -184,7 +165,8 @@ inline enable_if_t<
   ( is_std_vector<Sum>::value || is_std_array<Sum>::value )
 >
 add_sq(Sum& sum, const TT&... xx) noexcept {
-  for (auto& x : sum) x += sq(xx...);
+  auto arith_sq = sq(xx...);
+  for (auto& x : sum) x += arith_sq;
 }
 
 // general add_sq
@@ -200,6 +182,18 @@ add_sq(Sum& sum, const T& x, const TT&... xx) {
 
 // Variadic sq --------------------------------------------
 
+template <typename T>
+struct data_type { using type = T; };
+
+template <typename T, typename Alloc>
+struct data_type<std::vector<T,Alloc>> { using type = T; };
+
+template <typename T, size_t N>
+struct data_type<std::array<T,N>> { using type = T; };
+
+template <typename... TT>
+using common_data_t = common_t<typename data_type<TT>::type...>;
+
 template <typename T, typename... TT>
 inline std::vector<common_data_t<T, TT...>>
 sq(const std::vector<T>& in1, const TT&... in) {
@@ -213,6 +207,19 @@ inline std::array<common_data_t<T, TT...>,N>
 sq(const std::array<T,N>& in1, const TT&... in) {
   auto tmp = sq<N,T,common_data_t<T, TT...>>(in1);
   add_sq(tmp,in...);
+  return std::move(tmp);
+}
+
+// --------------------------------------------------------
+
+template <typename T, typename... TT>
+inline auto quad_sum(const T& x, const TT&... xx) noexcept
+-> enable_if_t<
+  is_std_vector<T>::value || is_std_array<T>::value,
+  decltype(sq(x,xx...)) >
+{
+  auto tmp = sq(x,xx...);
+  for (auto& x : tmp) x = std::sqrt(x);
   return std::move(tmp);
 }
 
