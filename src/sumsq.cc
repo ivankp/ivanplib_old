@@ -1,9 +1,16 @@
 #include <iostream>
 
+#include <boost/type_index.hpp>
+
 #include "sumsq.hh"
 
 #define test(var) \
   std::cout <<"\033[36m"<< #var <<"\033[0m"<< " = " << var << std::endl;
+
+#define print_type(var) \
+  std::cout <<"\033[36m"<< #var <<" type\033[0m"<< " = " \
+            << boost::typeindex::type_id<decltype( var )>().pretty_name() \
+            << std::endl;
 
 using std::cout;
 using std::endl;
@@ -36,6 +43,10 @@ int main(int argc, char const *argv[]) {
   auto svs2 = sq(v1,v2,v3);
   for (auto x : svs2) cout << ' ' << x;
   cout << endl << endl;
+
+  add_sq(svs2,2,3);
+  for (auto x : svs2) cout << ' ' << x;
+  cout << endl << endl;
   // ------------------------------------------------------
 
   std::array<int,3> a1 {1,2,3};
@@ -49,7 +60,25 @@ int main(int argc, char const *argv[]) {
   auto sas2 = sq(a1,a2,a3);
   for (auto x : sas2) cout << ' ' << x;
   cout << endl;
+
+  for (auto x : sq(a1,a2)) cout << ' ' << x;
+  cout << endl;
+
+  for (auto x : sq(a1,a2,v1,2,3.5)) cout << ' ' << x;
+  cout << endl;
+
+  add_sq(sas1,v1,2,3.5);
+  for (auto x : sas1) cout << ' ' << x;
+  cout << endl << endl;
   // ------------------------------------------------------
+
+  print_type( sq(a1,a2,v1,2,3) )
+  print_type( sq(a1,a2,v1,2,-3) )
+  print_type( sq(a1,a2,v1,2,3.5) )
+  print_type( sq(v1,a1,2.f,3) )
+  print_type( sq(v1,a1,2.f,3) )
+
+  print_type( (common_t<float,int>()) )
 
   return 0;
 }

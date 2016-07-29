@@ -13,82 +13,100 @@ namespace goop {
 
 // Type aliases -------------------------------------------
 
+// bool types compositing
+
+template< bool... > struct bool_sequence {};
+
+template< bool... B >
+using bool_and = std::is_same< bool_sequence< B... >,
+                               bool_sequence< ( B || true )... > >;
+template< bool... B >
+using bool_or = std::integral_constant< bool, !bool_and< !B... >::value >;
+
+template <template<typename> class Condition, typename... TT>
+using all_are = bool_and<Condition<TT>::value...>;
+
+// enable if
+
+template< bool B, typename T = void >
+using enable_if_t = typename std::enable_if<B,T>::type;
+
+template <typename T, typename... A>
+using enable_if_all_arithmetic_t
+  = enable_if_t<all_are<std::is_arithmetic,A...>::value,T>;
+
+template <typename T, typename... A>
+using enable_if_not_all_arithmetic_t
+  = enable_if_t<!all_are<std::is_arithmetic,A...>::value,T>;
+
 template <typename... TT>
 using common_t = typename std::common_type<TT...>::type;
 
-template <typename A, typename T=A>
-using enable_arithmetic_t
-  = typename std::enable_if<std::is_arithmetic<A>::value,T>::type;
+template <typename... A>
+using enable_if_all_arithmetic_common_t
+  = enable_if_all_arithmetic_t<common_t<A...>,A...>;
 
-template <typename A, typename T=A>
-using enable_not_arithmetic_t
-  = typename std::enable_if<!std::is_arithmetic<A>::value,T>::type;
+// container traits
 
-template <typename T, typename... TT>
-using enable_arithmetic_common_t = enable_arithmetic_t<T, common_t<T, TT...>>;
+template<typename T>
+struct is_std_vector: std::false_type { };
+
+template<typename T, typename Alloc>
+struct is_std_vector<std::vector<T,Alloc>>: std::true_type { };
+
+template<typename T>
+struct is_std_array: std::false_type { };
+
+template<typename T, size_t N>
+struct is_std_array<std::array<T,N>>: std::true_type { };
+
+// data type
+
+template <typename T>
+struct data_type { using type = T; };
+
+template <typename T, typename Alloc>
+struct data_type<std::vector<T,Alloc>> { using type = T; };
+
+template <typename T, size_t N>
+struct data_type<std::array<T,N>> { using type = T; };
+
+template <typename... TT>
+using common_data_t = common_t<typename data_type<TT>::type...>;
 
 // Arithmetic types ---------------------------------------
 // pass by value
 
 template <typename T>
-inline enable_arithmetic_t<T> sq(T x) noexcept __attribute__((const, flatten));
+inline enable_if_all_arithmetic_t<T,T>
+sq(T x) noexcept __attribute__((const, flatten));
 
 template <typename T>
-inline enable_arithmetic_t<T> sq(T x) noexcept { return x*x; }
+inline enable_if_all_arithmetic_t<T,T>
+sq(T x) noexcept { return x*x; }
 
 template <typename T, typename... TT>
-inline enable_arithmetic_common_t<T,TT...>
+inline enable_if_all_arithmetic_common_t<T,TT...>
 sq(T x, TT... xx) noexcept __attribute__((const, flatten));
 
 template <typename T, typename... TT>
-inline enable_arithmetic_common_t<T,TT...>
+inline enable_if_all_arithmetic_common_t<T,TT...>
 sq(T x, TT... xx) noexcept { return sq(x)+sq(xx...); }
 
 template <typename T, typename... TT>
-inline enable_arithmetic_common_t<T,TT...>
+inline enable_if_all_arithmetic_common_t<T,TT...>
 quad_sum(T x, TT... xx) noexcept __attribute__((const, flatten));
 
 template <typename T, typename... TT>
-inline enable_arithmetic_common_t<T,TT...>
+inline enable_if_all_arithmetic_common_t<T,TT...>
 quad_sum(T x, TT... xx) noexcept { return std::sqrt(sq(x,xx...)); }
-
-// Non-arithmetic types -----------------------------------
-// pass by reference
-// move results
-
-template <typename T>
-inline enable_not_arithmetic_t<T> sq(const T& x) { return std::move(x*x); }
-
-template <typename T, typename... TT>
-inline enable_not_arithmetic_t<T, common_t<T, TT...>>
-sq(const T& x, const TT&... xx) {
-  return std::move(sq(x)+sq(xx...));
-}
-
-template <typename T, typename... TT>
-inline enable_not_arithmetic_t<T, common_t<T, TT...>>
-quad_sum(const T& x, const TT&... xx) { return std::sqrt(sq(x,xx...)); }
 
 // std::vector --------------------------------------------
 
-template <typename T1, typename T2>
-void vectors_size_check(const std::vector<T1>& v1, const std::vector<T2>& v2) {
-  if (v1.size()!=v2.size()) throw std::out_of_range(
-    "vectors of different size");
-}
-
-template <typename Sum, typename In>
-inline void add_sq(std::vector<Sum>& sum2, const std::vector<In>& in) {
-  vectors_size_check(sum2,in);
-  for (size_t i=0, n=in.size(); i<n; ++i) sum2[i] += sq(in[i]);
-}
-
-template <typename Sum, typename In1, typename... In>
-inline void add_sq(std::vector<Sum>& sum2,
-  const std::vector<In1>& in1, const std::vector<In>&... in)
-{
-  add_sq(sum2,in1);
-  add_sq(sum2,in...);
+template <typename C1, typename C2>
+void containers_size_check(const C1& c1, const C2& c2) {
+  if (c1.size()!=c2.size()) throw std::out_of_range(
+    "containers of different size");
 }
 
 template <typename T, typename Out=T>
@@ -96,14 +114,6 @@ inline std::vector<Out> sq(const std::vector<T>& in) {
   std::vector<Out> tmp;
   tmp.reserve(in.size());
   for (const auto& x : in) tmp.emplace_back(sq(x));
-  return std::move(tmp);
-}
-
-template <typename T, typename... TT>
-inline std::vector<common_t<T, TT...>>
-sq(const std::vector<T>& in1, const std::vector<TT>&... in) {
-  auto tmp = sq<T,common_t<T, TT...>>(in1);
-  add_sq(tmp,in...);
   return std::move(tmp);
 }
 
@@ -124,19 +134,6 @@ namespace detail_sq_std_array {
   }
 }
 
-template <size_t N, typename Sum, typename In>
-inline void add_sq(std::array<Sum,N>& sum2, const std::array<In,N>& in) {
-  for (size_t i=0; i<N; ++i) sum2[i] += sq(in[i]);
-}
-
-template <size_t N, typename Sum, typename In1, typename... In>
-inline void add_sq(std::array<Sum,N>& sum2,
-  const std::array<In1,N>& in1, const std::array<In,N>&... in)
-{
-  add_sq(sum2,in1);
-  add_sq(sum2,in...);
-}
-
 template <size_t N, typename T, typename Out=T>
 inline std::array<Out,N> sq(const std::array<T,N>& in)
 {
@@ -145,13 +142,81 @@ inline std::array<Out,N> sq(const std::array<T,N>& in)
     detail_sq_std_array::gens_t<N>() ) );
 }
 
-template <size_t N, typename T, typename... TT>
-inline std::array<common_t<T, TT...>,N>
-sq(const std::array<T,N>& in1, const std::array<TT,N>&... in) {
-  auto tmp = sq<N,T,common_t<T, TT...>>(in1);
+// Add two containers -------------------------------------
+
+template <typename T, typename In, typename Alloc1, typename Alloc2>
+inline void add_sq(std::vector<T,Alloc1>& sum2,
+                   const std::vector<In,Alloc2>& in)
+{
+  containers_size_check(sum2,in);
+  for (size_t i=0, n=in.size(); i<n; ++i) sum2[i] += sq(in[i]);
+}
+
+template <size_t N, typename T, typename In>
+inline enable_if_all_arithmetic_t<void,T,In>
+add_sq(std::array<T,N>& sum2, const std::array<In,N>& in) {
+  for (size_t i=0; i<N; ++i) sum2[i] += sq(in[i]);
+}
+
+template <size_t N, typename T, typename In, typename Alloc>
+inline enable_if_all_arithmetic_t<void,T,In>
+add_sq(std::array<T,N>& sum2, const std::vector<In,Alloc>& in) {
+  containers_size_check(sum2,in);
+  for (size_t i=0; i<N; ++i) sum2[i] += sq(in[i]);
+}
+
+template <typename T, typename Alloc, typename In, size_t N>
+inline enable_if_all_arithmetic_t<void,T,In>
+add_sq(std::vector<T,Alloc>& sum2, const std::array<In,N>& in) {
+  containers_size_check(sum2,in);
+  for (size_t i=0; i<N; ++i) sum2[i] += sq(in[i]);
+}
+
+// Variadic add_sq ----------------------------------------
+
+template <bool... TT> struct bool_test;
+template <typename... TT> struct type_test;
+
+// Add arithmetics to containers
+template <typename Sum, typename... TT>
+inline enable_if_t<
+  all_are<std::is_arithmetic,TT...>::value &&
+  ( is_std_vector<Sum>::value || is_std_array<Sum>::value )
+>
+add_sq(Sum& sum, const TT&... xx) noexcept {
+  for (auto& x : sum) x += sq(xx...);
+}
+
+// general add_sq
+template <typename Sum, typename T, typename... TT>
+inline enable_if_t<
+  !all_are<std::is_arithmetic,T,TT...>::value &&
+  ( is_std_vector<Sum>::value || is_std_array<Sum>::value )
+>
+add_sq(Sum& sum, const T& x, const TT&... xx) {
+  add_sq(sum,x);
+  add_sq(sum,xx...);
+}
+
+// Variadic sq --------------------------------------------
+
+template <typename T, typename... TT>
+inline std::vector<common_data_t<T, TT...>>
+sq(const std::vector<T>& in1, const TT&... in) {
+  auto tmp = sq<T,common_data_t<T, TT...>>(in1);
   add_sq(tmp,in...);
   return std::move(tmp);
 }
+
+template <size_t N, typename T, typename... TT>
+inline std::array<common_data_t<T, TT...>,N>
+sq(const std::array<T,N>& in1, const TT&... in) {
+  auto tmp = sq<N,T,common_data_t<T, TT...>>(in1);
+  add_sq(tmp,in...);
+  return std::move(tmp);
+}
+
+// --------------------------------------------------------
 
 } // end namespace
 
