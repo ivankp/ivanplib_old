@@ -2,8 +2,6 @@
 
 #include <boost/type_index.hpp>
 
-#include "sumsq.hh"
-
 #define test(var) \
   std::cout <<"\033[36m"<< #var <<"\033[0m"<< " = " << var << std::endl;
 
@@ -11,6 +9,8 @@
   std::cout <<"\033[36m"<< #var <<" type\033[0m"<< " = " \
             << boost::typeindex::type_id<decltype( var )>().pretty_name() \
             << std::endl;
+
+#include "sumsq.hh"
 
 using std::cout;
 using std::endl;
@@ -76,6 +76,10 @@ int main(int argc, char const *argv[]) {
 
   print_type( quad_sum(a1,a2,v1,2,3.5) )
   for (auto x : quad_sum(a1,a2,v1,2,3.5)) cout << ' ' << x;
+  cout << endl;
+
+  print_type( quad_sum(v1,a1,a2,2,3.5) )
+  for (auto x : quad_sum(v1,a1,a2,2,3.5)) cout << ' ' << x;
   cout << endl;
 
   add_sq(sas1,2,v1,3.5);

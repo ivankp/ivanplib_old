@@ -26,51 +26,51 @@ using bool_or = std::integral_constant< bool, !bool_and< !B... >::value >;
 template <template<typename> class Condition, typename... TT>
 using all_are = bool_and<Condition<TT>::value...>;
 
-// enable if
+// SFINAE for arithmetic
 
 template< bool B, typename T = void >
 using enable_if_t = typename std::enable_if<B,T>::type;
 
 template <typename T, typename... A>
-using enable_if_all_arithmetic_t
+using enable_if_arithmetic_t
   = enable_if_t<all_are<std::is_arithmetic,A...>::value,T>;
 
 template <typename T, typename... A>
-using enable_if_not_all_arithmetic_t
+using enable_if_not_arithmetic_t
   = enable_if_t<!all_are<std::is_arithmetic,A...>::value,T>;
 
 template <typename... TT>
 using common_t = typename std::common_type<TT...>::type;
 
 template <typename... A>
-using enable_if_all_arithmetic_common_t
-  = enable_if_all_arithmetic_t<common_t<A...>,A...>;
+using enable_if_arithmetic_common_t
+  = enable_if_arithmetic_t<common_t<A...>,A...>;
 
 // Arithmetic types ---------------------------------------
 // pass by value
 
 template <typename T>
-inline enable_if_all_arithmetic_t<T,T>
+inline enable_if_arithmetic_t<T,T>
 sq(T x) noexcept __attribute__((const, flatten));
 
 template <typename T>
-inline enable_if_all_arithmetic_t<T,T>
+inline enable_if_arithmetic_t<T,T>
 sq(T x) noexcept { return x*x; }
 
 template <typename T, typename... TT>
-inline enable_if_all_arithmetic_common_t<T,TT...>
+inline enable_if_arithmetic_common_t<T,TT...>
 sq(T x, TT... xx) noexcept __attribute__((const, flatten));
 
 template <typename T, typename... TT>
-inline enable_if_all_arithmetic_common_t<T,TT...>
+inline enable_if_arithmetic_common_t<T,TT...>
 sq(T x, TT... xx) noexcept { return sq(x)+sq(xx...); }
 
 template <typename T, typename... TT>
-inline enable_if_all_arithmetic_common_t<T,TT...>
+inline enable_if_arithmetic_common_t<T,TT...>
 quad_sum(T x, TT... xx) noexcept __attribute__((const, flatten));
 
 template <typename T, typename... TT>
-inline enable_if_all_arithmetic_common_t<T,TT...>
+inline enable_if_arithmetic_common_t<T,TT...>
 quad_sum(T x, TT... xx) noexcept { return std::sqrt(sq(x,xx...)); }
 
 // std::vector --------------------------------------------
@@ -90,6 +90,8 @@ inline std::vector<Out> sq(const std::vector<T>& in) {
 }
 
 // std::array ---------------------------------------------
+
+template <typename... TT> struct type_test;
 
 namespace detail_sq_std_array {
   template<int ...> struct seq { };
@@ -125,20 +127,20 @@ inline void add_sq(std::vector<T,Alloc1>& sum2,
 }
 
 template <size_t N, typename T, typename In>
-inline enable_if_all_arithmetic_t<void,T,In>
+inline enable_if_arithmetic_t<void,T,In>
 add_sq(std::array<T,N>& sum2, const std::array<In,N>& in) {
   for (size_t i=0; i<N; ++i) sum2[i] += sq(in[i]);
 }
 
 template <size_t N, typename T, typename In, typename Alloc>
-inline enable_if_all_arithmetic_t<void,T,In>
+inline enable_if_arithmetic_t<void,T,In>
 add_sq(std::array<T,N>& sum2, const std::vector<In,Alloc>& in) {
   containers_size_check(sum2,in);
   for (size_t i=0; i<N; ++i) sum2[i] += sq(in[i]);
 }
 
 template <typename T, typename Alloc, typename In, size_t N>
-inline enable_if_all_arithmetic_t<void,T,In>
+inline enable_if_arithmetic_t<void,T,In>
 add_sq(std::vector<T,Alloc>& sum2, const std::array<In,N>& in) {
   containers_size_check(sum2,in);
   for (size_t i=0; i<N; ++i) sum2[i] += sq(in[i]);
@@ -195,7 +197,7 @@ template <typename... TT>
 using common_data_t = common_t<typename data_type<TT>::type...>;
 
 template <typename T, typename... TT>
-inline std::vector<common_data_t<T, TT...>>
+inline enable_if_arithmetic_t< std::vector<common_data_t<T, TT...>>, T >
 sq(const std::vector<T>& in1, const TT&... in) {
   auto tmp = sq<T,common_data_t<T, TT...>>(in1);
   add_sq(tmp,in...);
@@ -203,7 +205,7 @@ sq(const std::vector<T>& in1, const TT&... in) {
 }
 
 template <size_t N, typename T, typename... TT>
-inline std::array<common_data_t<T, TT...>,N>
+inline enable_if_arithmetic_t< std::array<common_data_t<T, TT...>,N>, T >
 sq(const std::array<T,N>& in1, const TT&... in) {
   auto tmp = sq<N,T,common_data_t<T, TT...>>(in1);
   add_sq(tmp,in...);
