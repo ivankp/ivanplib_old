@@ -20,6 +20,10 @@ template <typename A, typename T=A>
 using enable_arithmetic_t
   = typename std::enable_if<std::is_arithmetic<A>::value,T>::type;
 
+template <typename A, typename T=A>
+using enable_not_arithmetic_t
+  = typename std::enable_if<!std::is_arithmetic<A>::value,T>::type;
+
 template <typename T, typename... TT>
 using enable_arithmetic_common_t = enable_arithmetic_t<T, common_t<T, TT...>>;
 
@@ -53,19 +57,16 @@ quad_sum(T x, TT... xx) noexcept { return std::sqrt(sq(x,xx...)); }
 // move results
 
 template <typename T>
-inline typename std::enable_if<!std::is_arithmetic<T>::value,T>::type
-sq(const T& x) { return std::move(x*x); }
+inline enable_not_arithmetic_t<T> sq(const T& x) { return std::move(x*x); }
 
 template <typename T, typename... TT>
-inline typename std::enable_if<
-  !std::is_arithmetic<T>::value, common_t<T, TT...> >::type
+inline enable_not_arithmetic_t<T, common_t<T, TT...>>
 sq(const T& x, const TT&... xx) {
   return std::move(sq(x)+sq(xx...));
 }
 
 template <typename T, typename... TT>
-inline typename std::enable_if<
-  !std::is_arithmetic<T>::value, common_t<T, TT...> >::type
+inline enable_not_arithmetic_t<T, common_t<T, TT...>>
 quad_sum(const T& x, const TT&... xx) { return std::sqrt(sq(x,xx...)); }
 
 // std::vector --------------------------------------------
@@ -99,9 +100,9 @@ inline std::vector<Out> sq(const std::vector<T>& in) {
 }
 
 template <typename T, typename... TT>
-inline std::vector<typename std::common_type<T, TT...>::type>
+inline std::vector<common_t<T, TT...>>
 sq(const std::vector<T>& in1, const std::vector<TT>&... in) {
-  auto tmp = sq<T,typename std::common_type<T, TT...>::type>(in1);
+  auto tmp = sq<T,common_t<T, TT...>>(in1);
   add_sq(tmp,in...);
   return std::move(tmp);
 }
@@ -145,9 +146,9 @@ inline std::array<Out,N> sq(const std::array<T,N>& in)
 }
 
 template <size_t N, typename T, typename... TT>
-inline std::array<typename std::common_type<T, TT...>::type,N>
+inline std::array<common_t<T, TT...>,N>
 sq(const std::array<T,N>& in1, const std::array<TT,N>&... in) {
-  auto tmp = sq<N,T,typename std::common_type<T, TT...>::type>(in1);
+  auto tmp = sq<N,T,common_t<T, TT...>>(in1);
   add_sq(tmp,in...);
   return std::move(tmp);
 }
