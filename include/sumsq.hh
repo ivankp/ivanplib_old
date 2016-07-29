@@ -11,30 +11,42 @@
 
 namespace goop {
 
+// Type aliases -------------------------------------------
+
+template <typename... TT>
+using common_t = typename std::common_type<TT...>::type;
+
+template <typename A, typename T=A>
+using enable_arithmetic_t
+  = typename std::enable_if<std::is_arithmetic<A>::value,T>::type;
+
+template <typename T, typename... TT>
+using enable_arithmetic_common_t = enable_arithmetic_t<T, common_t<T, TT...>>;
+
 // Arithmetic types ---------------------------------------
 // pass by value
 
 template <typename T>
-inline typename std::enable_if<std::is_arithmetic<T>::value,T>::type
-sq(T x) noexcept { return x*x; }
+inline enable_arithmetic_t<T> sq(T x) noexcept __attribute__((const, flatten));
+
+template <typename T>
+inline enable_arithmetic_t<T> sq(T x) noexcept { return x*x; }
 
 template <typename T, typename... TT>
-inline typename std::enable_if<
-  std::is_arithmetic<T>::value,
-  typename std::common_type<T, TT...>::type
->::type
-sq(T x, TT... xx) noexcept {
-  return sq(x)+sq(xx...);
-}
+inline enable_arithmetic_common_t<T,TT...>
+sq(T x, TT... xx) noexcept __attribute__((const, flatten));
 
 template <typename T, typename... TT>
-inline typename std::enable_if<
-  std::is_arithmetic<T>::value,
-  typename std::common_type<T, TT...>::type
->::type
-quad_sum(T x, TT... xx) noexcept {
-  return std::sqrt(sq(x,xx...));
-}
+inline enable_arithmetic_common_t<T,TT...>
+sq(T x, TT... xx) noexcept { return sq(x)+sq(xx...); }
+
+template <typename T, typename... TT>
+inline enable_arithmetic_common_t<T,TT...>
+quad_sum(T x, TT... xx) noexcept __attribute__((const, flatten));
+
+template <typename T, typename... TT>
+inline enable_arithmetic_common_t<T,TT...>
+quad_sum(T x, TT... xx) noexcept { return std::sqrt(sq(x,xx...)); }
 
 // Non-arithmetic types -----------------------------------
 // pass by reference
@@ -46,12 +58,15 @@ sq(const T& x) { return std::move(x*x); }
 
 template <typename T, typename... TT>
 inline typename std::enable_if<
-  !std::is_arithmetic<T>::value,
-  typename std::common_type<T, TT...>::type
->::type
+  !std::is_arithmetic<T>::value, common_t<T, TT...> >::type
 sq(const T& x, const TT&... xx) {
   return std::move(sq(x)+sq(xx...));
 }
+
+template <typename T, typename... TT>
+inline typename std::enable_if<
+  !std::is_arithmetic<T>::value, common_t<T, TT...> >::type
+quad_sum(const T& x, const TT&... xx) { return std::sqrt(sq(x,xx...)); }
 
 // std::vector --------------------------------------------
 
@@ -104,7 +119,7 @@ namespace detail_sq_std_array {
   inline std::array<Out,N> sq_impl(const std::array<T,N>& in,
     type_wrap<Out>, seq<I...>)
   {
-    return { sq(std::get<I>(in))... };
+    return { (Out)sq(std::get<I>(in))... };
   }
 }
 
@@ -122,7 +137,8 @@ inline void add_sq(std::array<Sum,N>& sum2,
 }
 
 template <size_t N, typename T, typename Out=T>
-inline std::array<Out,N> sq(const std::array<T,N>& in) {
+inline std::array<Out,N> sq(const std::array<T,N>& in)
+{
   return std::move( detail_sq_std_array::sq_impl( in,
     detail_sq_std_array::type_wrap<Out>(),
     detail_sq_std_array::gens_t<N>() ) );
