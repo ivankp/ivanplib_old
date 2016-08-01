@@ -7,6 +7,8 @@
 #include <iomanip>
 #include <chrono>
 
+namespace ivanp {
+
 template <typename I, typename Compare = std::less<I>>
 class timed_counter {
 public:
@@ -109,5 +111,7 @@ public:
     return (os << tc.cnt);
   }
 };
+
+} // end namespace
 
 #endif
