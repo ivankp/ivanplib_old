@@ -1,5 +1,7 @@
 # Written by Ivan Pogrebnyak
 
+# TODO: fix problem with running in multiple threads
+
 CXX := g++
 STD := -std=c++11
 DF := $(STD)
