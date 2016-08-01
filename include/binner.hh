@@ -90,8 +90,11 @@ namespace ivanp {
     bool ubw; // uniform bin width
     // IDEA: use boost::variant<std::vector<edge_t>,<nbins,low,up>>
     // http://www.boost.org/doc/libs/1_61_0/doc/html/variant/tutorial.html
+    // TODO: use union for this
 
     // TODO: Allow Containers to be std::arrays
+    // IDEA: make default edge Container std::array
+    // TODO: make sure Containers can be array_views
 
   public:
     binner(): _edges(), _bins(), ubw(false) { }
@@ -193,7 +196,7 @@ namespace ivanp {
     noexcept(noexcept(
       std::declval<binner&>().fill(e, std::forward<TT>(args)...) ))
     {
-      return fill(e, std::forward<TT>(args)...);
+      return binner::fill(e, std::forward<TT>(args)...);
     }
 
     //---------------------------------------------
@@ -223,13 +226,26 @@ namespace ivanp {
     }
 
     //---------------------------------------------
+  private:
+    template <typename T> static inline
+    typename std::enable_if<std::is_integral<T>::value,T>::type
+    ulim() { return std::numeric_limits<T>::max(); }
+    template <typename T> static inline
+    typename std::enable_if<std::is_floating_point<T>::value,T>::type
+    ulim() { return std::numeric_limits<T>::infinity(); }
+    template <typename T> static inline
+    typename std::enable_if<std::is_integral<T>::value,T>::type
+    llim() { return std::numeric_limits<T>::min(); }
+    template <typename T> static inline
+    typename std::enable_if<std::is_floating_point<T>::value,T>::type
+    llim() { return -std::numeric_limits<T>::infinity(); }
 
+  public:
     edge_t ledge(size_type i) const {
-      return i ? _edges.at(i-1) : -std::numeric_limits<edge_t>::infinity();
+      return i ? _edges.at(i-1) : binner::llim<edge_t>();
     }
     edge_t redge(size_type i) const noexcept {
-      return i<_edges.size() ? _edges[i]
-                             : std::numeric_limits<edge_t>::infinity();
+      return i<_edges.size() ? _edges[i] : binner::ulim<edge_t>();
     }
 
     //---------------------------------------------

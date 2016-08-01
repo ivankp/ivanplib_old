@@ -31,7 +31,7 @@ int main()
   histD(5,9);
   histD(-1,7);
 
-  for (unsigned i=0; i<histD.bins().size(); ++i)
+  for (unsigned i=0; i<histD.nbinso(); ++i)
     cout << "bin "<< i << " ["
          << histD.ledge(i) << ',' << histD.redge(i)
          << "): " << histD[i] << endl;
@@ -71,9 +71,9 @@ int main()
   for (unsigned i=0; i<strings_by_size.nbinso(); ++i) {
     cout << "bin "<< i << " ["
          << strings_by_size.ledge(i) << ',' << strings_by_size.redge(i)
-         << "): ";
+         << "):";
     for (const auto& str : strings_by_size[i])
-      cout << str << ' ';
+      cout << ' ' << str;
     cout << endl;
   }
 
