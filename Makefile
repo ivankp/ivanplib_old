@@ -1,3 +1,5 @@
+# Written by Ivan Pogrebnyak
+
 CXX := g++
 STD := -std=c++11
 DF := $(STD)
@@ -8,14 +10,14 @@ CF += -Iinclude
 DF += -Iinclude
 # LF +=
 
-SRC := src
-BIN := bin
+SRC := test
+BIN := test
 BLD := .build
 
 SRCS := $(shell find $(SRC) -type f -name '*.cc')
 DEPS := $(patsubst $(SRC)%.cc,$(BLD)%.d,$(SRCS))
 
-GREP_EXES := grep -rl '^ *int \+main *(' $(SRC)
+GREP_EXES := grep -rl '^ *int \+main *(' $(SRCS)
 EXES := $(patsubst $(SRC)%.cc,$(BIN)%,$(shell $(GREP_EXES)))
 
 NODEPS := clean
@@ -41,4 +43,4 @@ $(BLD) $(BIN):
 	mkdir $@
 
 clean:
-	@rm -rfv $(BLD) $(BIN)
+	@rm -rfv $(BLD) $(EXES)
