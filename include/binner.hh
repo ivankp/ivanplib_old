@@ -7,7 +7,7 @@
 #include <utility>
 #include <algorithm>
 
-#include "operator_traits.hh"
+#include "expression_traits.hh"
 
 /*
  * Same convention as in ROOT TH1:
@@ -38,7 +38,7 @@ namespace ivanp {
     inline typename std::enable_if<
       !has_op_pre_increment<Bin>::value &&
       !has_op_post_increment<Bin>::value &&
-      has_op_call<Bin>::value
+      is_callable<Bin>::value
     >::type
     operator()(Bin& bin) noexcept(noexcept(bin())) { bin(); }
 
@@ -52,13 +52,13 @@ namespace ivanp {
     template <typename T, typename Bin = BinType>
     inline typename std::enable_if<
       !has_op_plus_eq<Bin,T>::value &&
-      has_op_call<Bin,T>::value
+      is_callable<Bin,T>::value
     >::type
     operator()(Bin& bin, T&& x) noexcept(noexcept(bin(x))) { bin(x); }
 
     template <typename T1, typename... TT, typename Bin = BinType>
     inline typename std::enable_if<
-      has_op_call<Bin,T1,TT...>::value
+      is_callable<Bin,T1,TT...>::value
     >::type
     operator()(Bin& bin, T1&& arg1, TT&&... args)
     noexcept(noexcept(bin(std::forward<T1>(arg1), std::forward<TT>(args)...)))

@@ -45,7 +45,7 @@ int main()
     ivanp::default_bin_filler<binner<double>>,std::deque<float>
   > bb(3,0,3);
   for (auto& bin : bb.bins()) bin = {1,2};
-  print_type(bb.bins().back())
+  print_typeof(bb.bins().back())
   bb.bins().back() = {1,3,6,8};
 
   bb.fill(1,1);

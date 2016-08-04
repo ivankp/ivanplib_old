@@ -1,7 +1,7 @@
 // Written by Ivan Pogrebnyak
 
-#ifndef IVANP_OPERATOR_TRAITS_HH
-#define IVANP_OPERATOR_TRAITS_HH
+#ifndef IVANP_EXPRESSION_TRAITS_HH
+#define IVANP_EXPRESSION_TRAITS_HH
 
 #include <type_traits>
 
@@ -52,7 +52,7 @@ DEFINE_UNARY_TRAIT(has_op_post_decrement, x--)
 DEFINE_BINARY_TRAIT(has_op_plus_eq, x1+=x2)
 DEFINE_BINARY_TRAIT(has_op_minus_eq, x1-=x2)
 
-DEFINE_VARIADIC_TRAIT(has_op_call, x(xx...))
+DEFINE_VARIADIC_TRAIT(is_callable, x(xx...))
 
 } // end namespace
 
