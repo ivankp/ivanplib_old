@@ -3,6 +3,8 @@
 #ifndef IVANP_TEST_MACROS_HH
 #define IVANP_TEST_MACROS_HH
 
+#include <iostream>
+
 #define test(var) \
   std::cout << "\033[36m" << #var << "\033[0m = " << var << std::endl;
 

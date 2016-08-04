@@ -12,14 +12,10 @@
 struct foo { };
 struct bar { };
 
-using std::vector;
-using std::string;
-using std::basic_string;
-
-DEFINE_IS_TEMPLATE_TRAIT(vector);
-DEFINE_IS_TEMPLATE_TRAIT(basic_string);
-DEFINE_IS_TYPE_TRAIT(string);
-DEFINE_IS_TYPE_TRAIT(foo);
+DEFINE_IS_TEMPLATE_TRAIT(std::vector,vector);
+DEFINE_IS_TEMPLATE_TRAIT(std::basic_string,basic_string);
+DEFINE_IS_TYPE_TRAIT(std::string,string);
+DEFINE_IS_TYPE_TRAIT(foo,foo);
 
 #define L std::cout << std::endl;
 

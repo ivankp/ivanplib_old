@@ -27,6 +27,10 @@ NODEPS := clean
 
 all: $(EXES)
 
+test/args_parse: $(BLD)/args_parse_src.o
+
+$(BLD)/args_parse_src.o: src/args_parse.cc
+
 #Don't create dependencies when we're cleaning, for instance
 ifeq (0, $(words $(findstring $(MAKECMDGOALS), $(NODEPS))))
 -include $(DEPS)
