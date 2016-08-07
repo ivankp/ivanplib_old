@@ -3,11 +3,13 @@
 #ifndef IVANP_ARGS_PARSE_HH
 #define IVANP_ARGS_PARSE_HH
 
+#include <utility>
+#include <memory>
+#include <algorithm>
 #include <string>
 #include <vector>
 #include <tuple>
 #include <unordered_map>
-#include <memory>
 
 #include <sstream>
 
@@ -22,6 +24,9 @@ namespace ivanp { namespace args_parse {
     none = 0,
     required = 1
   };
+
+  struct no_default_t { };
+  constexpr no_default_t no_default;
 
   class args_parse {
 
@@ -52,29 +57,52 @@ namespace ivanp { namespace args_parse {
     template <typename T, typename... Args>
     struct arg_proxy_value {
       std::tuple<Args...> args;
+      // TODO: use reference to a tuple when appropriate
     private:
-      // http://stackoverflow.com/a/7858971/2640636
-      template <int ...> struct seq { };
-      template <int N, int ...S> struct gens : gens<N-1, N-1, S...> { };
-      template <int ...S> struct gens<0, S...> { typedef seq<S...> type; };
-      template <int N> using gens_t = typename gens<N>::type;
+      template <typename A, size_t I> struct has_get {
+        typedef char yes;
+        typedef char no[2];
+        template <typename U> static auto f(U&& x)
+          -> decltype( std::get<I>(x), yes() );
+        template <typename U> static no&  f(...);
+        enum { value = sizeof(f<A>(std::declval<A>())) == sizeof(yes) };
+      };
 
-      template <int ...S>
-      inline typename std::enable_if<(sizeof...(S)!=1)>::type
-      assign_default_impl(T& x, seq<S...>) const {
-        x = T(std::get<S>(args)...);
+      template <size_t I>
+      inline typename std::enable_if<(I==sizeof...(Args)-1)>::type
+      assign_default_impl_get(T& x) const {
+        std::get<I>(x) = std::move(std::get<I>(args));
       }
-      template <int ...S>
-      inline typename std::enable_if<(sizeof...(S)==1)>::type
-      assign_default_impl(T& x, seq<S...>) const {
-        x = std::get<0>(args);
+      template <size_t I>
+      inline typename std::enable_if<(I!=sizeof...(Args)-1)>::type
+      assign_default_impl_get(T& x) const {
+        std::get<I>(x) = std::move(std::get<I>(args));
+        assign_default_impl_get<I+1>(x);
+      }
+
+      template <size_t... I>
+      inline typename std::enable_if<(sizeof...(I)!=1)>::type
+      assign_default_impl(T& x, seq<I...>) const {
+        x = T(std::move(std::get<I>(args))...);
+      }
+      template <size_t... I>
+      inline typename std::enable_if<(sizeof...(I)==1)>::type
+      assign_default_impl(T& x, seq<I...>) const {
+        x = std::move(std::get<0>(args));
       }
       // TODO: provide better alternatives for assignment
       // http://en.cppreference.com/w/cpp/header/type_traits
     public:
-      inline void assign_default(void* ptr) const {
-        assign_default_impl( *reinterpret_cast<T*>(ptr),
-                             gens_t<sizeof...(Args)>() );
+      template <typename U=T>
+      inline typename std::enable_if< !has_get<U,0>::value >::type
+      assign_default(void* ptr) const {
+        assign_default_impl( *reinterpret_cast<U*>(ptr),
+                             seq_up_to<sizeof...(Args)>() );
+      }
+      template <typename U=T>
+      inline typename std::enable_if<  has_get<U,0>::value >::type
+      assign_default(void* ptr) const {
+        assign_default_impl_get<0>( *reinterpret_cast<U*>(ptr) );
       }
     };
 
@@ -82,20 +110,14 @@ namespace ivanp { namespace args_parse {
     struct arg_proxy_value<std::vector<T,Alloc>,Args...> {
       std::tuple<Args...> args;
     private:
-      // http://stackoverflow.com/a/7858971/2640636
-      template <int ...> struct seq { };
-      template <int N, int ...S> struct gens : gens<N-1, N-1, S...> { };
-      template <int ...S> struct gens<0, S...> { typedef seq<S...> type; };
-      template <int N> using gens_t = typename gens<N>::type;
-
-      template <int ...S>
-      inline void assign_default_impl(std::vector<T,Alloc>& x, seq<S...>) const {
-        x = {std::get<S>(args)...};
+      template <size_t... I>
+      inline void assign_default_impl(std::vector<T,Alloc>& x, seq<I...>) const {
+        x = {std::move(std::get<I>(args))...};
       }
     public:
       inline void assign_default(void* ptr) const {
         assign_default_impl( *reinterpret_cast<std::vector<T,Alloc>*>(ptr),
-                             gens_t<sizeof...(Args)>() );
+                             seq_up_to<sizeof...(Args)>() );
       }
     };
 
@@ -113,6 +135,28 @@ namespace ivanp { namespace args_parse {
         T x;
         std::stringstream(str) >> x;
         reinterpret_cast<std::vector<T,Alloc>*>(ptr)->emplace_back(x);
+      }
+    };
+    template <typename T, size_t N>
+    struct arg_proxy_parser_default<std::array<T,N>> {
+    private:
+      using iter_t = std::string::const_iterator;
+    public:
+      template <size_t I>
+      inline typename std::enable_if<(I<N-1)>::type
+      parse_impl(std::array<T,N>& x, iter_t begin, iter_t end) const {
+        auto delim = std::find(begin,end,':');
+        std::stringstream({begin,delim}) >> std::get<I>(x);
+        if (delim!=end) parse_impl<I+1>(x,++delim,end);
+      }
+      template <size_t I>
+      inline typename std::enable_if<(I==N-1)>::type
+      parse_impl(std::array<T,N>& x, iter_t begin, iter_t end) const {
+        std::stringstream({begin,end}) >> std::get<I>(x);
+      }
+      inline void parse(void* ptr, const std::string& str) const {
+        parse_impl<0>(*reinterpret_cast<std::array<T,N>*>(ptr),
+                      str.begin(), str.end() );
       }
     };
 
@@ -136,9 +180,9 @@ namespace ivanp { namespace args_parse {
     template <typename T, typename... Args>
     struct arg_proxy_v: arg_proxy<T>, arg_proxy_value<T,Args...> {
       template <typename S1, typename S2, typename Tuple>
-      arg_proxy_v(S1&& opt, S2&& desc, flags_t flags, const Tuple& args)
+      arg_proxy_v(S1&& opt, S2&& desc, flags_t flags, Tuple&& args)
       : arg_proxy<T>(std::forward<S1>(opt), std::forward<S2>(desc), flags),
-        arg_proxy_value<T,Args...>{args} { }
+        arg_proxy_value<T,Args...>{std::forward<Tuple>(args)} { }
       virtual void assign_default(void* ptr) const {
         arg_proxy_value<T,Args...>::assign_default(ptr);
       }
@@ -161,9 +205,9 @@ namespace ivanp { namespace args_parse {
     {
       template <typename S1, typename S2, typename Tuple, typename Func>
       arg_proxy_vp(S1&& opt, S2&& desc, flags_t flags,
-        const Tuple& tuple, Func&& parser)
+        Tuple&& args, Func&& parser)
       : arg_proxy_base(std::forward<S1>(opt), std::forward<S2>(desc), flags),
-        arg_proxy_value<T,Args...>{tuple},
+        arg_proxy_value<T,Args...>{std::forward<Tuple>(args)},
         arg_proxy_parser<T,Parser>{std::forward<Func>(parser)} { }
       virtual void assign_default(void* ptr) const {
         arg_proxy_value<T,Args...>::assign_default(ptr);
@@ -199,18 +243,18 @@ namespace ivanp { namespace args_parse {
 
     DEFINE_IS_TEMPLATE_TRAIT(std::tuple,std_tuple);
 
-    template <typename S1, typename S2, typename Tuple>
+    template <typename S1, typename S2, typename Arg>
     using call_enable_v1 = typename std::enable_if<
       std::is_convertible<S1,std::string>::value &&
       std::is_convertible<S2,std::string>::value &&
-      !is_std_tuple<Tuple>::value,
+      !is_std_tuple<Arg>::value,
     args_parse >::type;
 
-    template <typename S1, typename S2, typename Tuple, typename Func, typename T>
+    template <typename S1, typename S2, typename Arg, typename Func, typename T>
     using call_enable_v1p = typename std::enable_if<
       std::is_convertible<S1,std::string>::value &&
       std::is_convertible<S2,std::string>::value &&
-      !is_std_tuple<Tuple>::value &&
+      !is_std_tuple<Arg>::value &&
       is_callable<Func,T*,const std::string&>::value,
     args_parse >::type;
 
@@ -232,29 +276,41 @@ namespace ivanp { namespace args_parse {
     operator()( S1&& option, T* x, S2&& desc, const std::tuple<Args...>& args,
       flags_t flags=flags_t::none)
     {
-      argmap_add(x, new arg_proxy_v<T, remove_cvr_t<Args>...>(
+      argmap_add(x, new arg_proxy_v<T, Args...>(
         std::forward<S1>(option), std::forward<S2>(desc), flags, args) );
+      return *this;
+    }
+
+    template <typename T, typename S1, typename S2, typename... Args>
+    call_enable<S1,S2>&
+    operator()( S1&& option, T* x, S2&& desc, std::tuple<Args...>&& args,
+      flags_t flags=flags_t::none)
+    {
+      argmap_add(x, new arg_proxy_v<T, Args...>(
+        std::forward<S1>(option), std::forward<S2>(desc), flags,
+        std::move(args)) );
       return *this;
     }
 
     template <typename T, typename S1, typename S2, typename Arg>
     call_enable_v1<S1,S2,Arg>&
-    operator()( S1&& option, T* x, S2&& desc, const Arg& arg,
+    operator()( S1&& option, T* x, S2&& desc, Arg&& arg,
       flags_t flags=flags_t::none)
     {
-      argmap_add(x, new arg_proxy_v<T,Arg>(
+      argmap_add(x, new arg_proxy_v<T,Arg&&>(
         std::forward<S1>(option), std::forward<S2>(desc), flags,
-        std::forward_as_tuple(arg) ) );
+        std::forward_as_tuple(std::forward<Arg>(arg)) ) );
       return *this;
     }
 
     template <typename T, typename S1, typename S2, typename Parser>
     call_enable_p<S1,S2,Parser,T>&
-    operator()( S1&& option, T* x, S2&& desc, Parser&& parser,
+    operator()( S1&& option, T* x, S2&& desc, no_default_t, Parser&& parser,
       flags_t flags=flags_t::none)
     {
-      argmap_add(x, new arg_proxy_p<T, remove_cvr_t<Parser>>(
-        std::forward<S1>(option), std::forward<S2>(desc), flags, parser ) );
+      argmap_add(x, new arg_proxy_p<T, Parser>(
+        std::forward<S1>(option), std::forward<S2>(desc), flags,
+        std::forward<Parser>(parser) ) );
       return *this;
     }
 
@@ -266,22 +322,37 @@ namespace ivanp { namespace args_parse {
       flags_t flags=flags_t::none)
     {
       argmap_add(x,
-        new arg_proxy_vp<T, remove_cvr_t<Parser>, remove_cvr_t<Args>...>(
+        new arg_proxy_vp<T, Parser, Args...>(
           std::forward<S1>(option), std::forward<S2>(desc), flags,
-          args, parser ) );
+          args, std::forward<Parser>(parser) ) );
+      return *this;
+    }
+
+    template <typename T, typename S1, typename S2,
+              typename Parser, typename... Args>
+    call_enable_p<S1,S2,Parser,T>&
+    operator()( S1&& option, T* x, S2&& desc,
+      std::tuple<Args...>&& args, Parser&& parser,
+      flags_t flags=flags_t::none)
+    {
+      argmap_add(x,
+        new arg_proxy_vp<T, Parser, Args...>(
+          std::forward<S1>(option), std::forward<S2>(desc), flags,
+          std::move(args), std::forward<Parser>(parser) ) );
       return *this;
     }
 
     template <typename T, typename S1, typename S2,
               typename Parser, typename Arg>
     call_enable_v1p<S1,S2,Arg,Parser,T>&
-    operator()( S1&& option, T* x, S2&& desc, const Arg& arg, Parser&& parser,
+    operator()( S1&& option, T* x, S2&& desc, Arg&& arg, Parser&& parser,
       flags_t flags=flags_t::none)
     {
       argmap_add(x,
-        new arg_proxy_vp<T, remove_cvr_t<Parser>, Arg>(
+        new arg_proxy_vp<T, Parser, Arg>(
           std::forward<S1>(option), std::forward<S2>(desc), flags,
-          std::forward_as_tuple(arg), parser ) );
+          std::forward_as_tuple(std::forward<Arg>(arg)),
+          std::forward<Parser>(parser) ) );
       return *this;
     }
 

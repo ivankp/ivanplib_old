@@ -20,18 +20,26 @@ template <typename T> struct is_##NAME : is_##NAME##_impl< \
 
 namespace ivanp {
 
-// ******************************************************************
+// boolean compositing **********************************************
 
-template < bool... > struct bool_sequence {};
+template <bool...> struct bool_sequence {};
 
-template < bool... B >
+template <bool... B>
 using bool_and = std::is_same< bool_sequence< B... >,
                                bool_sequence< ( B || true )... > >;
-template < bool... B >
+template <bool... B>
 using bool_or = std::integral_constant< bool, !bool_and< !B... >::value >;
 
 template <template<typename> class Condition, typename... TT>
 using all_are = bool_and<Condition<TT>::value...>;
+
+// index sequencing *************************************************
+
+// http://stackoverflow.com/a/7858971/2640636
+template <size_t ...> struct seq { };
+template <size_t N, size_t ...S> struct gen_seq : gen_seq<N-1, N-1, S...> { };
+template <size_t ...S> struct gen_seq<0, S...> { typedef seq<S...> type; };
+template <size_t N> using seq_up_to = typename gen_seq<N>::type;
 
 // find_first_type **************************************************
 

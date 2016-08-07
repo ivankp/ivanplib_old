@@ -41,7 +41,7 @@ args_parse& args_parse::parse(int argc, char const **argv) {
     if (opt.second->count==0) {
       if (opt.second->flags & flags_t::required)
         throw runtime_error("required argument "+opt_str+" not passed");
-      if (opt.second->iflags & has_default)
+      // if (opt.second->iflags & has_default)
         opt.second->assign_default(opt.first);
     }
   }
