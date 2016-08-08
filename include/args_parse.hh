@@ -349,7 +349,7 @@ namespace ivanp { namespace args_parse {
       flags_t flags=flags_t::none)
     {
       argmap_add(x,
-        new arg_proxy_vp<T, Parser, Arg>(
+        new arg_proxy_vp<T, Parser, Arg&&>(
           std::forward<S1>(option), std::forward<S2>(desc), flags,
           std::forward_as_tuple(std::forward<Arg>(arg)),
           std::forward<Parser>(parser) ) );
