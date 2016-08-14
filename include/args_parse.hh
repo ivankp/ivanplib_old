@@ -56,7 +56,9 @@ namespace ivanp { namespace args_parse {
     // arg_proxy_default --------------------------------------------
     template <typename T, typename... Args>
     struct arg_proxy_value {
-      std::tuple<Args...> args;
+      mutable std::tuple<Args...> args;
+      // show_type<Args...> xxx1;
+      // show_type<seq<sizeof(args)>> xxx2;
       // TODO: use reference to a tuple when appropriate
     private:
       template <typename A, size_t I> struct has_get {
@@ -122,6 +124,7 @@ namespace ivanp { namespace args_parse {
     };
 
     // arg_proxy_parser ---------------------------------------------
+    // TODO: refrain from stringstreams, parse without copying strings
     template <typename T>
     struct arg_proxy_parser_default {
       inline void parse(void* ptr, const std::string& str) const {
@@ -227,6 +230,11 @@ namespace ivanp { namespace args_parse {
         std::forward_as_tuple(proxy)
       );
     }
+
+    template <typename T>
+    using arithmetic_by_value_t = typename std::conditional<
+      std::is_arithmetic<T>::value,
+      T,T&&>::type;
 
     template <typename S1, typename S2>
     using call_enable = typename std::enable_if<
@@ -349,7 +357,7 @@ namespace ivanp { namespace args_parse {
       flags_t flags=flags_t::none)
     {
       argmap_add(x,
-        new arg_proxy_vp<T, Parser, Arg&&>(
+        new arg_proxy_vp<T, Parser, arithmetic_by_value_t<Arg> >(
           std::forward<S1>(option), std::forward<S2>(desc), flags,
           std::forward_as_tuple(std::forward<Arg>(arg)),
           std::forward<Parser>(parser) ) );
