@@ -31,7 +31,7 @@ int main(int argc, const char* argv[])
   // };
 
   int i;
-  long unsigned l;
+  long unsigned l = 0;
   double d;
   std::string str;
   std::vector<char> v;
