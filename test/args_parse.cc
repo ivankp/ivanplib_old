@@ -36,6 +36,7 @@ int main(int argc, const char* argv[])
   std::string str;
   std::vector<char> v;
   std::array<int,2> a;
+  std::tuple<std::string,size_t> t{{},0};
   foo f;
 
   try {
@@ -49,6 +50,14 @@ int main(int argc, const char* argv[])
         }/*,ap::required*/)
       ("v,vec",&v,"vector", std::forward_as_tuple(str1.begin()+1,str1.begin()+3))
       ("a,arr",&a,"array", std::forward_as_tuple(1,2))
+      ("t,tup",&t,"tuple"
+        // ap::no_default,
+        // std::forward_as_tuple(std::string(),0)
+        // [](decltype(t)* t, const std::string& str){
+        //   std::get<0>(*t) = str;
+        //   std::get<1>(*t) = str.size();
+        // }
+      )
       ("f,foo",&f,"test class",
         // ap::no_default,
         'x',
@@ -72,7 +81,6 @@ int main(int argc, const char* argv[])
         // std::tie(std::get<0>(tup3)),
         [](foo* f, const std::string& str){
           *f = str;
-          // f->s = str;
         })
       .parse(argc,argv);
   } catch ( std::exception& e ) {
@@ -86,6 +94,8 @@ int main(int argc, const char* argv[])
   test( str )
   for (auto vi : v) test( vi )
   for (auto ai : a) test( ai )
+  test( std::get<0>(t) )
+  test( std::get<1>(t) )
   test( f.s )
   test( str1 )
 

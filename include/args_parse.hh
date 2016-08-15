@@ -50,7 +50,7 @@ namespace ivanp { namespace args_parse {
 
       virtual void parse(void* ptr, const std::string& str) const =0;
       virtual void assign_default(void* ptr) const { }
-      virtual ~arg_proxy_base() { } // TODO: figure out if necessary
+      virtual ~arg_proxy_base() { }
     };
 
     // arg_proxy_value ----------------------------------------------
@@ -145,6 +145,7 @@ namespace ivanp { namespace args_parse {
         std::stringstream(str) >> (*reinterpret_cast<T*>(ptr));
       }
     };
+
     template <typename T, typename Alloc>
     struct arg_proxy_parser_default<std::vector<T,Alloc>> {
       inline void parse(void* ptr, const std::string& str) const {
@@ -153,6 +154,7 @@ namespace ivanp { namespace args_parse {
         reinterpret_cast<std::vector<T,Alloc>*>(ptr)->emplace_back(x);
       }
     };
+
     template <typename T, size_t N>
     struct arg_proxy_parser_default<std::array<T,N>> {
     private:
@@ -172,6 +174,52 @@ namespace ivanp { namespace args_parse {
       }
       inline void parse(void* ptr, const std::string& str) const {
         parse_impl<0>(*reinterpret_cast<std::array<T,N>*>(ptr),
+                      str.begin(), str.end() );
+      }
+    };
+
+    template <typename... TT>
+    struct arg_proxy_parser_default<std::tuple<TT...>> {
+    private:
+      using iter_t = std::string::const_iterator;
+    public:
+      template <size_t I>
+      inline typename std::enable_if<(I<sizeof...(TT)-1)>::type
+      parse_impl(std::tuple<TT...>& x, iter_t begin, iter_t end) const {
+        auto delim = std::find(begin,end,':');
+        std::stringstream({begin,delim}) >> std::get<I>(x);
+        if (delim!=end) parse_impl<I+1>(x,++delim,end);
+      }
+      template <size_t I>
+      inline typename std::enable_if<(I==sizeof...(TT)-1)>::type
+      parse_impl(std::tuple<TT...>& x, iter_t begin, iter_t end) const {
+        std::stringstream({begin,end}) >> std::get<I>(x);
+      }
+      inline void parse(void* ptr, const std::string& str) const {
+        parse_impl<0>(*reinterpret_cast<std::tuple<TT...>*>(ptr),
+                      str.begin(), str.end() );
+      }
+    };
+
+    template <typename... TT>
+    struct arg_proxy_parser_default<std::pair<TT...>> {
+    private:
+      using iter_t = std::string::const_iterator;
+    public:
+      template <size_t I>
+      inline typename std::enable_if<(I==0)>::type
+      parse_impl(std::pair<TT...>& x, iter_t begin, iter_t end) const {
+        auto delim = std::find(begin,end,':');
+        std::stringstream({begin,delim}) >> std::get<I>(x);
+        if (delim!=end) parse_impl<I+1>(x,++delim,end);
+      }
+      template <size_t I>
+      inline typename std::enable_if<(I==1)>::type
+      parse_impl(std::pair<TT...>& x, iter_t begin, iter_t end) const {
+        std::stringstream({begin,end}) >> std::get<I>(x);
+      }
+      inline void parse(void* ptr, const std::string& str) const {
+        parse_impl<0>(*reinterpret_cast<std::pair<TT...>*>(ptr),
                       str.begin(), str.end() );
       }
     };
@@ -232,6 +280,7 @@ namespace ivanp { namespace args_parse {
         arg_proxy_parser<T,Parser>::parse(ptr,str);
       }
     };
+    // --------------------------------------------------------------
 
     std::unordered_map<void*,std::unique_ptr<arg_proxy_base>> argmap;
     // value needs to be a pointer for polymorphism to work
