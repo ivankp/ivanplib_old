@@ -10,6 +10,8 @@ template <typename... TT> struct show_type;
 
 #include "args_parse.hh"
 
+using std::cout;
+using std::endl;
 namespace ap = ivanp::args_parse;
 
 int main(int argc, const char* argv[])
@@ -34,7 +36,7 @@ int main(int argc, const char* argv[])
   long unsigned l = 0;
   double d;
   std::string str;
-  std::vector<char> v;
+  std::vector<std::array<std::string,3>> v;
   std::array<int,2> a;
   std::tuple<std::string,size_t> t{{},0};
   foo f;
@@ -48,7 +50,7 @@ int main(int argc, const char* argv[])
         [](int* i, const std::string& str){
           (*i) = str.size();
         }/*,ap::required*/)
-      ("v,vec",&v,"vector", std::forward_as_tuple(str1.begin()+1,str1.begin()+3))
+      ("v,vec",&v,"vector")
       ("a,arr",&a,"array", std::forward_as_tuple(1,2))
       ("t,tup",&t,"tuple"
         // ap::no_default,
@@ -92,12 +94,16 @@ int main(int argc, const char* argv[])
   test( l )
   test( d )
   test( str )
-  for (auto vi : v) test( vi )
   for (auto ai : a) test( ai )
   test( std::get<0>(t) )
   test( std::get<1>(t) )
   test( f.s )
   test( str1 )
+  for (const auto& a : v) {
+    for (const auto& s : a)
+      cout << s << ' ';
+    cout << endl;
+  }
 
   return 0;
 }

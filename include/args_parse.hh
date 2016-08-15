@@ -149,19 +149,10 @@ namespace ivanp { namespace args_parse {
       ss >> x;
     }
 
-    template <typename T>
+    template <typename T, typename = void>
     struct arg_proxy_parser_default {
-      inline void parse(void* ptr, const std::string& str) const {
+      inline static void parse(void* ptr, const std::string& str) {
         default_parse(*reinterpret_cast<T*>(ptr),str);
-      }
-    };
-
-    template <typename T, typename Alloc>
-    struct arg_proxy_parser_default<std::vector<T,Alloc>> {
-      inline void parse(void* ptr, const std::string& str) const {
-        T x;
-        default_parse(x,str);
-        reinterpret_cast<std::vector<T,Alloc>*>(ptr)->emplace_back(std::move(x));
       }
     };
 
@@ -170,18 +161,18 @@ namespace ivanp { namespace args_parse {
       using iter_t = std::string::const_iterator;
 
       template <size_t I>
-      inline typename std::enable_if<(I<N-1)>::type
-      parse_impl(std::array<T,N>& x, iter_t begin, iter_t end) const {
+      inline static typename std::enable_if<(I<N-1)>::type
+      parse_impl(std::array<T,N>& x, iter_t begin, iter_t end) {
         auto delim = std::find(begin,end,':');
         default_parse(std::get<I>(x),begin,delim);
         if (delim!=end) parse_impl<I+1>(x,++delim,end);
       }
       template <size_t I>
-      inline typename std::enable_if<(I==N-1)>::type
-      parse_impl(std::array<T,N>& x, iter_t begin, iter_t end) const {
+      inline static typename std::enable_if<(I==N-1)>::type
+      parse_impl(std::array<T,N>& x, iter_t begin, iter_t end) {
         default_parse(std::get<I>(x),begin,end);
       }
-      inline void parse(void* ptr, const std::string& str) const {
+      inline static void parse(void* ptr, const std::string& str) {
         parse_impl<0>(*reinterpret_cast<std::array<T,N>*>(ptr),
                       str.begin(), str.end() );
       }
@@ -192,18 +183,18 @@ namespace ivanp { namespace args_parse {
       using iter_t = std::string::const_iterator;
 
       template <size_t I>
-      inline typename std::enable_if<(I<sizeof...(TT)-1)>::type
-      parse_impl(std::tuple<TT...>& x, iter_t begin, iter_t end) const {
+      inline static typename std::enable_if<(I<sizeof...(TT)-1)>::type
+      parse_impl(std::tuple<TT...>& x, iter_t begin, iter_t end) {
         auto delim = std::find(begin,end,':');
         default_parse(std::get<I>(x),begin,delim);
         if (delim!=end) parse_impl<I+1>(x,++delim,end);
       }
       template <size_t I>
-      inline typename std::enable_if<(I==sizeof...(TT)-1)>::type
-      parse_impl(std::tuple<TT...>& x, iter_t begin, iter_t end) const {
+      inline static typename std::enable_if<(I==sizeof...(TT)-1)>::type
+      parse_impl(std::tuple<TT...>& x, iter_t begin, iter_t end) {
         default_parse(std::get<I>(x),begin,end);
       }
-      inline void parse(void* ptr, const std::string& str) const {
+      inline static void parse(void* ptr, const std::string& str) {
         parse_impl<0>(*reinterpret_cast<std::tuple<TT...>*>(ptr),
                       str.begin(), str.end() );
       }
@@ -214,20 +205,77 @@ namespace ivanp { namespace args_parse {
       using iter_t = std::string::const_iterator;
 
       template <size_t I>
-      inline typename std::enable_if<(I==0)>::type
-      parse_impl(std::pair<TT...>& x, iter_t begin, iter_t end) const {
+      inline static typename std::enable_if<(I==0)>::type
+      parse_impl(std::pair<TT...>& x, iter_t begin, iter_t end) {
         auto delim = std::find(begin,end,':');
         default_parse(std::get<I>(x),begin,delim);
         if (delim!=end) parse_impl<I+1>(x,++delim,end);
       }
       template <size_t I>
-      inline typename std::enable_if<(I==1)>::type
-      parse_impl(std::pair<TT...>& x, iter_t begin, iter_t end) const {
+      inline static typename std::enable_if<(I==1)>::type
+      parse_impl(std::pair<TT...>& x, iter_t begin, iter_t end) {
         default_parse(std::get<I>(x),begin,end);
       }
-      inline void parse(void* ptr, const std::string& str) const {
+      inline static void parse(void* ptr, const std::string& str) {
         parse_impl<0>(*reinterpret_cast<std::pair<TT...>*>(ptr),
                       str.begin(), str.end() );
+      }
+    };
+
+    DEFINE_BINARY_TRAIT(has_emplace_back, x1.emplace_back(x2));
+    DEFINE_BINARY_TRAIT(has_emplace, x1.emplace(x2));
+    DEFINE_BINARY_TRAIT(has_emplace_front, x1.emplace_front(x2));
+
+    template <typename T, typename = void>
+    struct emplace_trait { enum { value = false }; };
+
+    template <typename T>
+    struct emplace_trait<T, typename std::enable_if<
+      has_emplace_back<T, typename T::value_type>::value
+    >::type> {
+      enum { value = true };
+      using type = typename T::value_type;
+      template <typename... Args>
+      inline static void emplace(T* x, Args&&... args) {
+        x->emplace_back(std::forward<Args>(args)...);
+      }
+    };
+
+    template <typename T>
+    struct emplace_trait<T, typename std::enable_if<
+      !has_emplace_back<T, typename T::value_type>::value &&
+      has_emplace<T, typename T::value_type>::value
+    >::type> {
+      enum { value = true };
+      using type = typename T::value_type;
+      template <typename... Args>
+      inline static void emplace(T* x, Args&&... args) {
+        x->emplace(std::forward<Args>(args)...);
+      }
+    };
+
+    template <typename T>
+    struct emplace_trait<T, typename std::enable_if<
+      !has_emplace_back<T, typename T::value_type>::value &&
+      !has_emplace<T, typename T::value_type>::value &&
+      has_emplace_front<T, typename T::value_type>::value
+    >::type> {
+      enum { value = true };
+      using type = typename T::value_type;
+      template <typename... Args>
+      inline static void emplace(T* x, Args&&... args) {
+        x->emplace_front(std::forward<Args>(args)...);
+      }
+    };
+
+    template <typename T>
+    struct arg_proxy_parser_default<T, typename std::enable_if<
+      emplace_trait<T>::value
+    >::type> {
+      inline void parse(void* ptr, const std::string& str) const {
+        typename emplace_trait<T>::type x;
+        arg_proxy_parser_default<decltype(x)>::parse(&x,str);
+        emplace_trait<T>::emplace(reinterpret_cast<T*>(ptr),std::move(x));
       }
     };
 
@@ -283,15 +331,13 @@ namespace ivanp { namespace args_parse {
     // };
 
     // --------------------------------------------------------------
-    template <typename T>
-    struct type_flags_trait {
-      static constexpr auto value = flags_t::none;
-    };
+    template <typename T, typename = void>
+    struct type_flags_trait { static constexpr auto value = flags_t::none; };
 
-    template <typename T, typename Alloc>
-    struct type_flags_trait<std::vector<T,Alloc>> {
-      static constexpr auto value = flags_t::multiple;
-    };
+    template <typename T>
+    struct type_flags_trait<T, typename std::enable_if<
+      emplace_trait<T>::value
+    >::type> { static constexpr auto value = flags_t::multiple; };
 
     template <typename T>
     inline flags_t type_flags(flags_t flags) const noexcept {
