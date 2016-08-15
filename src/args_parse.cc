@@ -29,7 +29,7 @@ args_parse& args_parse::parse(int argc, char const **argv) {
     for (int argi=1; argi<argc; ++argi) {
       if ( (short_opt.size() && short_opt==argv[argi])
         || ( long_opt.size() &&  long_opt==argv[argi]) ) {
-        if ( !(opt.second->iflags & non_unique)
+        if ( !(opt.second->flags & multiple)
           && opt.second->count ) throw runtime_error(
             "unique argument "+opt_str+" passed more then once");
         ++opt.second->count;

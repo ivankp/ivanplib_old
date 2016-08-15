@@ -20,9 +20,11 @@
 
 namespace ivanp { namespace args_parse {
 
-  enum flags_t {
+  enum flags_t : unsigned short {
     none = 0,
-    required = 1
+    required = 1,
+    multiple = 2,
+    multivalue = 4 // TODO: implement
   };
 
   struct no_default_t { };
@@ -30,18 +32,11 @@ namespace ivanp { namespace args_parse {
 
   class args_parse {
 
-    enum iflags_t {
-      none = 0,
-      has_default = 1,
-      non_unique = 2
-    };
-
     // arg_proxy ----------------------------------------------------
     struct arg_proxy_base {
       std::string opt, desc;
       flags_t flags;
       int count;
-      iflags_t iflags;
 
       template <typename S1, typename S2>
       arg_proxy_base(S1&& opt, S2&& desc, flags_t flags)
@@ -135,6 +130,8 @@ namespace ivanp { namespace args_parse {
           = std::forward<type<0>>(std::get<0>(args));
       }
     };
+
+    // TODO: default from functional
 
     // arg_proxy_parser ---------------------------------------------
     // TODO: refrain from stringstreams, parse without copying strings
@@ -234,6 +231,22 @@ namespace ivanp { namespace args_parse {
 
     // --------------------------------------------------------------
     template <typename T>
+    struct type_flags_trait {
+      static constexpr auto value = flags_t::none;
+    };
+
+    template <typename T, typename Alloc>
+    struct type_flags_trait<std::vector<T,Alloc>> {
+      static constexpr auto value = flags_t::multiple;
+    };
+
+    template <typename T>
+    inline flags_t type_flags(flags_t flags) const noexcept {
+      return static_cast<flags_t>(flags | type_flags_trait<T>::value);
+    }
+
+    // --------------------------------------------------------------
+    template <typename T>
     struct arg_proxy: arg_proxy_base, arg_proxy_parser_default<T> {
       using arg_proxy_base::arg_proxy_base;
       virtual void parse(void* ptr, const std::string& str) const {
@@ -323,7 +336,7 @@ namespace ivanp { namespace args_parse {
     call_enable_t<S1,S2>&
     operator()( S1&& option, T* x, S2&& desc, flags_t flags=flags_t::none) {
       argmap_add(x, new arg_proxy<T>(
-        std::forward<S1>(option), std::forward<S2>(desc), flags) );
+        std::forward<S1>(option), std::forward<S2>(desc), type_flags<T>(flags)) );
       return *this;
     }
 
@@ -333,7 +346,8 @@ namespace ivanp { namespace args_parse {
       flags_t flags=flags_t::none)
     {
       argmap_add(x, new arg_proxy_v<T, remove_rvalue_reference_t<Args>...>(
-        std::forward<S1>(option), std::forward<S2>(desc), flags, args) );
+        std::forward<S1>(option), std::forward<S2>(desc), type_flags<T>(flags),
+        args) );
       return *this;
     }
 
@@ -343,7 +357,7 @@ namespace ivanp { namespace args_parse {
       flags_t flags=flags_t::none)
     {
       argmap_add(x, new arg_proxy_v<T, remove_rvalue_reference_t<Args>...>(
-        std::forward<S1>(option), std::forward<S2>(desc), flags,
+        std::forward<S1>(option), std::forward<S2>(desc), type_flags<T>(flags),
         std::move(args)) );
       return *this;
     }
@@ -354,7 +368,7 @@ namespace ivanp { namespace args_parse {
       flags_t flags=flags_t::none)
     {
       argmap_add(x, new arg_proxy_v<T,Arg>(
-        std::forward<S1>(option), std::forward<S2>(desc), flags,
+        std::forward<S1>(option), std::forward<S2>(desc), type_flags<T>(flags),
         std::forward_as_tuple(std::forward<Arg>(arg)) ) );
       return *this;
     }
@@ -365,7 +379,7 @@ namespace ivanp { namespace args_parse {
       flags_t flags=flags_t::none)
     {
       argmap_add(x, new arg_proxy_p<T, Parser>(
-        std::forward<S1>(option), std::forward<S2>(desc), flags,
+        std::forward<S1>(option), std::forward<S2>(desc), type_flags<T>(flags),
         std::forward<Parser>(parser) ) );
       return *this;
     }
@@ -379,7 +393,7 @@ namespace ivanp { namespace args_parse {
     {
       argmap_add(x,
         new arg_proxy_vp<T, Parser, remove_rvalue_reference_t<Args>...>(
-          std::forward<S1>(option), std::forward<S2>(desc), flags,
+          std::forward<S1>(option), std::forward<S2>(desc), type_flags<T>(flags),
           args, std::forward<Parser>(parser) ) );
       return *this;
     }
@@ -393,7 +407,7 @@ namespace ivanp { namespace args_parse {
     {
       argmap_add(x,
         new arg_proxy_vp<T, Parser, remove_rvalue_reference_t<Args>...>(
-          std::forward<S1>(option), std::forward<S2>(desc), flags,
+          std::forward<S1>(option), std::forward<S2>(desc), type_flags<T>(flags),
           std::move(args), std::forward<Parser>(parser) ) );
       return *this;
     }
@@ -406,7 +420,7 @@ namespace ivanp { namespace args_parse {
     {
       argmap_add(x,
         new arg_proxy_vp<T, Parser, Arg>(
-          std::forward<S1>(option), std::forward<S2>(desc), flags,
+          std::forward<S1>(option), std::forward<S2>(desc), type_flags<T>(flags),
           std::forward_as_tuple(std::forward<Arg>(arg)),
           std::forward<Parser>(parser) ) );
       return *this;
