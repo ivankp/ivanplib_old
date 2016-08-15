@@ -29,11 +29,6 @@ int main(int argc, const char* argv[])
   //   str1
   //   // std::move(std::get<0>(tup1))
   // };
-  // const foo f1(str1);
-
-  // test(get<0>(tup1).s)
-  // test(get<0>(tup2).s)
-  // test(get<0>(tup3).s)
 
   int i;
   long unsigned l;
@@ -42,9 +37,6 @@ int main(int argc, const char* argv[])
   std::vector<char> v;
   std::array<int,2> a;
   foo f;
-
-  // TODO: figure out how to store the default arguments properly
-  // TODO: and only copy when necessary
 
   try {
     ap::args_parse()
@@ -64,7 +56,6 @@ int main(int argc, const char* argv[])
         // str1,
         // foo("default value"),
         // foo(str1),
-        // f1,
         // std::forward_as_tuple(3,'x'),
         // std::forward_as_tuple("default value"),
         // std::forward_as_tuple(str1),
@@ -79,7 +70,6 @@ int main(int argc, const char* argv[])
         // std::tie(str1),
         // std::get<0>(tup3),
         // std::tie(std::get<0>(tup3)),
-        // TODO: make no copy when passing object value
         [](foo* f, const std::string& str){
           *f = str;
           // f->s = str;

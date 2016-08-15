@@ -8,7 +8,6 @@ using namespace std;
 
 namespace ivanp { namespace args_parse {
 
-// TODO: assign default values
 // TODO: add syntax for short and long options
 
 args_parse& args_parse::parse(int argc, char const **argv) {

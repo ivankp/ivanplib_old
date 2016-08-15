@@ -245,41 +245,35 @@ namespace ivanp { namespace args_parse {
     }
 
     template <typename S1, typename S2>
-    using call_enable = typename std::enable_if<
+    using call_enable_t = typename std::enable_if<
       std::is_convertible<S1,std::string>::value &&
       std::is_convertible<S2,std::string>::value,
     args_parse >::type;
 
     template <typename S1, typename S2, typename Func, typename T>
-    using call_enable_p = typename std::enable_if<
-      std::is_convertible<S1,std::string>::value &&
-      std::is_convertible<S2,std::string>::value &&
+    using call_enable_p_t = typename std::enable_if<
       is_callable<Func,T*,const std::string&>::value,
-    args_parse >::type;
+    call_enable_t<S1,S2> >::type;
 
     DEFINE_IS_TEMPLATE_TRAIT(std::tuple,std_tuple);
 
     template <typename S1, typename S2, typename Arg>
-    using call_enable_v1 = typename std::enable_if<
-      std::is_convertible<S1,std::string>::value &&
-      std::is_convertible<S2,std::string>::value &&
+    using call_enable_v1_t = typename std::enable_if<
       !is_std_tuple<Arg>::value,
-    args_parse >::type;
+    call_enable_t<S1,S2> >::type;
 
     template <typename S1, typename S2, typename Arg, typename Func, typename T>
-    using call_enable_v1p = typename std::enable_if<
-      std::is_convertible<S1,std::string>::value &&
-      std::is_convertible<S2,std::string>::value &&
-      !is_std_tuple<Arg>::value &&
-      is_callable<Func,T*,const std::string&>::value,
-    args_parse >::type;
+    using call_enable_v1p_t = typename std::tuple_element<0,std::pair<
+      call_enable_p_t<S1,S2,Func,T>,
+      call_enable_v1_t<S1,S2,Arg>
+    >>::type;
 
   public:
     args_parse() = default;
     args_parse& parse(int argc, char const **argv);
 
     template <typename T, typename S1, typename S2>
-    call_enable<S1,S2>&
+    call_enable_t<S1,S2>&
     operator()( S1&& option, T* x, S2&& desc, flags_t flags=flags_t::none) {
       argmap_add(x, new arg_proxy<T>(
         std::forward<S1>(option), std::forward<S2>(desc), flags) );
@@ -287,7 +281,7 @@ namespace ivanp { namespace args_parse {
     }
 
     template <typename T, typename S1, typename S2, typename... Args>
-    call_enable<S1,S2>&
+    call_enable_t<S1,S2>&
     operator()( S1&& option, T* x, S2&& desc, const std::tuple<Args...>& args,
       flags_t flags=flags_t::none)
     {
@@ -297,7 +291,7 @@ namespace ivanp { namespace args_parse {
     }
 
     template <typename T, typename S1, typename S2, typename... Args>
-    call_enable<S1,S2>&
+    call_enable_t<S1,S2>&
     operator()( S1&& option, T* x, S2&& desc, std::tuple<Args...>&& args,
       flags_t flags=flags_t::none)
     {
@@ -308,7 +302,7 @@ namespace ivanp { namespace args_parse {
     }
 
     template <typename T, typename S1, typename S2, typename Arg>
-    call_enable_v1<S1,S2,Arg>&
+    call_enable_v1_t<S1,S2,Arg>&
     operator()( S1&& option, T* x, S2&& desc, Arg&& arg,
       flags_t flags=flags_t::none)
     {
@@ -319,7 +313,7 @@ namespace ivanp { namespace args_parse {
     }
 
     template <typename T, typename S1, typename S2, typename Parser>
-    call_enable_p<S1,S2,Parser,T>&
+    call_enable_p_t<S1,S2,Parser,T>&
     operator()( S1&& option, T* x, S2&& desc, no_default_t, Parser&& parser,
       flags_t flags=flags_t::none)
     {
@@ -331,7 +325,7 @@ namespace ivanp { namespace args_parse {
 
     template <typename T, typename S1, typename S2,
               typename Parser, typename... Args>
-    call_enable_p<S1,S2,Parser,T>&
+    call_enable_p_t<S1,S2,Parser,T>&
     operator()( S1&& option, T* x, S2&& desc,
       const std::tuple<Args...>& args, Parser&& parser,
       flags_t flags=flags_t::none)
@@ -345,7 +339,7 @@ namespace ivanp { namespace args_parse {
 
     template <typename T, typename S1, typename S2,
               typename Parser, typename... Args>
-    call_enable_p<S1,S2,Parser,T>&
+    call_enable_p_t<S1,S2,Parser,T>&
     operator()( S1&& option, T* x, S2&& desc,
       std::tuple<Args...>&& args, Parser&& parser,
       flags_t flags=flags_t::none)
@@ -359,7 +353,7 @@ namespace ivanp { namespace args_parse {
 
     template <typename T, typename S1, typename S2,
               typename Parser, typename Arg>
-    call_enable_v1p<S1,S2,Arg,Parser,T>&
+    call_enable_v1p_t<S1,S2,Arg,Parser,T>&
     operator()( S1&& option, T* x, S2&& desc, Arg&& arg, Parser&& parser,
       flags_t flags=flags_t::none)
     {
