@@ -255,17 +255,15 @@ namespace ivanp { namespace args_parse {
       is_callable<Func,T*,const std::string&>::value,
     call_enable_t<S1,S2> >::type;
 
-    DEFINE_IS_TEMPLATE_TRAIT(std::tuple,std_tuple);
-
-    template <typename S1, typename S2, typename Arg>
+    template <typename S1, typename S2, typename Arg, typename T>
     using call_enable_v1_t = typename std::enable_if<
-      !is_std_tuple<Arg>::value,
+      std::is_convertible<Arg,T>::value,
     call_enable_t<S1,S2> >::type;
 
     template <typename S1, typename S2, typename Arg, typename Func, typename T>
     using call_enable_v1p_t = typename std::tuple_element<0,std::pair<
       call_enable_p_t<S1,S2,Func,T>,
-      call_enable_v1_t<S1,S2,Arg>
+      call_enable_v1_t<S1,S2,Arg,T>
     >>::type;
 
   public:
@@ -302,7 +300,7 @@ namespace ivanp { namespace args_parse {
     }
 
     template <typename T, typename S1, typename S2, typename Arg>
-    call_enable_v1_t<S1,S2,Arg>&
+    call_enable_v1_t<S1,S2,Arg,T>&
     operator()( S1&& option, T* x, S2&& desc, Arg&& arg,
       flags_t flags=flags_t::none)
     {
