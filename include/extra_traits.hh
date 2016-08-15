@@ -74,6 +74,18 @@ template <typename T>
 using remove_cvr_t = typename std::remove_reference<
   typename std::remove_cv<T>::type>::type;
 
+template <typename T>
+using remove_rvalue_reference_t = typename std::conditional<
+  std::is_rvalue_reference<T>::value,
+  typename std::remove_reference<T>::type, T
+>::type;
+
+// template <typename T>
+// using nonref_to_lref_t = typename std::conditional<
+//   std::is_reference<T>::value,
+//   T, typename std::add_lvalue_reference<T>::type
+// >::type;
+
 // template <template<typename...> class In, typename... TT>
 // struct bind_all_types_but_1 {
 //   template <typename T> struct type : In<T,TT...> { };
