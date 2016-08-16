@@ -55,9 +55,9 @@ int main(int argc, const char* argv[])
       ("v,vec",&v,"vector")
       ("m,map",&m,"map")
       ("a,arr",&a,"array", std::forward_as_tuple(1,2))
-      ("t,tup",&t,"tuple"
+      ("t,tup",&t,"tuple",
         // ap::no_default,
-        // std::forward_as_tuple(std::string(),0)
+        std::forward_as_tuple("text",42)
         // [](decltype(t)* t, const std::string& str){
         //   std::get<0>(*t) = str;
         //   std::get<1>(*t) = str.size();

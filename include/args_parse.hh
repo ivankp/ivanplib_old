@@ -36,6 +36,7 @@ namespace ivanp { namespace args_parse {
   constexpr no_default_t no_default;
 
   class args_parse {
+    using siter_t = std::string::const_iterator;
 
     // arg_proxy ----------------------------------------------------
     struct arg_proxy_base {
@@ -62,6 +63,15 @@ namespace ivanp { namespace args_parse {
       // show_type<seq<sizeof(args)>> tuple_size;
       template <size_t I>
       using type = typename std::tuple_element<I, std::tuple<Args...>>::type;
+
+      // template <size_t... I>
+      // inline void assign_default_impl(T& x, seq<I...>) const {
+      //   x = { std::forward<type<I>>(std::get<I>(args))... };
+      // }
+      // inline void assign_default(void* ptr) const {
+      //   assign_default_impl( *reinterpret_cast<T*>(ptr),
+      //                        seq_up_to<sizeof...(Args)>() );
+      // }
 
     private:
       template <typename A, size_t I> struct has_get {
@@ -132,100 +142,57 @@ namespace ivanp { namespace args_parse {
 
     // TODO: default from functional
 
-    // arg_proxy_parser ---------------------------------------------
-    // TODO: refrain from stringstreams, parse without copying strings
-    template <typename T>
-    inline static void default_parse(T& x, const std::string& str) {
-      // (*reinterpret_cast<T*>(ptr)) = boost::lexical_cast<T>(str);
-      std::stringstream(str) >> x;
-    }
-    template <typename T, typename InputIt>
-    inline static void default_parse(T& x, InputIt first, InputIt last) {
-      std::stringstream ss;
-      std::copy(first, last, std::ostreambuf_iterator<char>(ss));
-      ss >> x;
-    }
-
+    // arg_parser ---------------------------------------------
     template <typename T, typename = void>
-    struct arg_proxy_parser_default {
+    struct arg_parser_default {
+      inline static void parse(T& x, siter_t first, siter_t last) {
+        // (*reinterpret_cast<T*>(ptr)) = boost::lexical_cast<T>(str);
+        // TODO: refrain from stringstreams, parse without copying strings
+        std::stringstream ss;
+        std::copy(first, last, std::ostreambuf_iterator<char>(ss));
+        ss >> x;
+      }
       inline static void parse(void* ptr, const std::string& str) {
-        default_parse(*reinterpret_cast<T*>(ptr),str);
+        parse(*reinterpret_cast<T*>(ptr),str.begin(),str.end());
       }
     };
 
-    template <typename T, size_t N>
-    struct arg_proxy_parser_default<std::array<T,N>> {
-      using iter_t = std::string::const_iterator;
-
-      template <size_t I> inline static enable_if_t<(I<N-1)>
-      parse_impl(std::array<T,N>& x, iter_t begin, iter_t end) {
-        auto delim = std::find(begin,end,':');
-        default_parse(std::get<I>(x),begin,delim);
-        if (delim!=end) parse_impl<I+1>(x,++delim,end);
-      }
-      template <size_t I> inline static enable_if_t<(I==N-1)>
-      parse_impl(std::array<T,N>& x, iter_t begin, iter_t end) {
-        default_parse(std::get<I>(x),begin,end);
-      }
-      inline static void parse(void* ptr, const std::string& str) {
-        parse_impl<0>(*reinterpret_cast<std::array<T,N>*>(ptr),
-                      str.begin(), str.end() );
-      }
-    };
-
-    template <typename... TT>
-    struct arg_proxy_parser_default<std::tuple<TT...>> {
-      using iter_t = std::string::const_iterator;
-
-      template <size_t I> inline static enable_if_t<(I<sizeof...(TT)-1)>
-      parse_impl(std::tuple<TT...>& x, iter_t begin, iter_t end) {
-        auto delim = std::find(begin,end,':');
-        default_parse(std::get<I>(x),begin,delim);
-        if (delim!=end) parse_impl<I+1>(x,++delim,end);
-      }
-      template <size_t I> inline static enable_if_t<(I==sizeof...(TT)-1)>
-      parse_impl(std::tuple<TT...>& x, iter_t begin, iter_t end) {
-        default_parse(std::get<I>(x),begin,end);
-      }
-      inline static void parse(void* ptr, const std::string& str) {
-        parse_impl<0>(*reinterpret_cast<std::tuple<TT...>*>(ptr),
-                      str.begin(), str.end() );
-      }
-    };
-
-    template <typename T1, typename T2>
-    struct arg_proxy_parser_default<std::pair<T1,T2>> {
-      using iter_t = std::string::const_iterator;
-
-      template <size_t I> inline static enable_if_t<(I==0)>
-      parse_impl(std::pair<T1,T2>& x, iter_t begin, iter_t end) {
-        auto delim = std::find(begin,end,':');
-        default_parse(std::get<I>(x),begin,delim);
-        if (delim!=end) parse_impl<I+1>(x,++delim,end);
-      }
-      template <size_t I> inline static enable_if_t<(I==1)>
-      parse_impl(std::pair<T1,T2>& x, iter_t begin, iter_t end) {
-        // default_parse(std::get<I>(x),begin,end);
-        arg_proxy_parser_default<T2>::parse(&std::get<I>(x),{begin,end});
-        // TODO: prevent string copying by implementing parse_impl uniformly
-      }
-      inline static void parse(void* ptr, const std::string& str) {
-        parse_impl<0>(*reinterpret_cast<std::pair<T1,T2>*>(ptr),
-                      str.begin(), str.end() );
-      }
-    };
-
+    // tuples, arrays, pairs
     template <typename T>
-    struct arg_proxy_parser_default<T, enable_if_t<can_emplace<T>::value>> {
+    struct arg_parser_default<T, enable_if_t<std::tuple_size<T>::value>> {
+      enum { size = std::tuple_size<T>::value };
+      template <size_t I> using type = tuple_element_t<I,T>;
+
+      template <size_t I> inline static enable_if_t<(I<size-1)>
+      parse_impl(T& x, siter_t begin, siter_t end) {
+        auto delim = std::find(begin,end,':');
+        arg_parser_default<type<I>>::parse(std::get<I>(x),begin,delim);
+        if (delim!=end) parse_impl<I+1>(x,++delim,end);
+      }
+      template <size_t I> inline static enable_if_t<(I==size-1)>
+      parse_impl(T& x, siter_t begin, siter_t end) {
+        arg_parser_default<type<I>>::parse(std::get<I>(x),begin,end);
+      }
+      inline static void parse(T& x, siter_t first, siter_t last) {
+        parse_impl<0>(x,first,last);
+      }
+      inline static void parse(void* ptr, const std::string& str) {
+        parse_impl<0>(*reinterpret_cast<T*>(ptr), str.begin(), str.end() );
+      }
+    };
+
+    // containters
+    template <typename T>
+    struct arg_parser_default<T, enable_if_t<can_emplace<T>::value>> {
       inline void parse(void* ptr, const std::string& str) const {
         typename can_emplace<T>::type x;
-        arg_proxy_parser_default<decltype(x)>::parse(&x,str);
+        arg_parser_default<decltype(x)>::parse(&x,str);
         can_emplace<T>::emplace(reinterpret_cast<T*>(ptr),std::move(x));
       }
     };
 
     template <typename T, typename Parser>
-    struct arg_proxy_parser {
+    struct arg_parser {
       Parser parser;
       inline void parse(void* ptr, const std::string& str) const {
         parser(reinterpret_cast<T*>(ptr),str);
@@ -248,10 +215,10 @@ namespace ivanp { namespace args_parse {
 
     // --------------------------------------------------------------
     template <typename T>
-    struct arg_proxy: arg_proxy_base, arg_proxy_parser_default<T> {
+    struct arg_proxy: arg_proxy_base, arg_parser_default<T> {
       using arg_proxy_base::arg_proxy_base;
       virtual void parse(void* ptr, const std::string& str) const {
-        arg_proxy_parser_default<T>::parse(ptr,str);
+        arg_parser_default<T>::parse(ptr,str);
       }
     };
 
@@ -267,31 +234,31 @@ namespace ivanp { namespace args_parse {
     };
 
     template <typename T, typename Parser>
-    struct arg_proxy_p: arg_proxy_base, arg_proxy_parser<T,Parser> {
+    struct arg_proxy_p: arg_proxy_base, arg_parser<T,Parser> {
       template <typename S1, typename S2, typename Func>
       arg_proxy_p(S1&& opt, S2&& desc, flags_t flags, Func&& parser)
       : arg_proxy_base(std::forward<S1>(opt), std::forward<S2>(desc), flags),
-        arg_proxy_parser<T,Parser>{std::forward<Func>(parser)} { }
+        arg_parser<T,Parser>{std::forward<Func>(parser)} { }
       virtual void parse(void* ptr, const std::string& str) const {
-        arg_proxy_parser<T,Parser>::parse(ptr,str);
+        arg_parser<T,Parser>::parse(ptr,str);
       }
     };
 
     template <typename T, typename Parser, typename... Args>
     struct arg_proxy_vp: arg_proxy_base, arg_proxy_value<T,Args...>,
-      arg_proxy_parser<T,Parser>
+      arg_parser<T,Parser>
     {
       template <typename S1, typename S2, typename Tuple, typename Func>
       arg_proxy_vp(S1&& opt, S2&& desc, flags_t flags,
         Tuple&& args, Func&& parser)
       : arg_proxy_base(std::forward<S1>(opt), std::forward<S2>(desc), flags),
         arg_proxy_value<T,Args...>{std::forward<Tuple>(args)},
-        arg_proxy_parser<T,Parser>{std::forward<Func>(parser)} { }
+        arg_parser<T,Parser>{std::forward<Func>(parser)} { }
       virtual void assign_default(void* ptr) const {
         arg_proxy_value<T,Args...>::assign_default(ptr);
       }
       virtual void parse(void* ptr, const std::string& str) const {
-        arg_proxy_parser<T,Parser>::parse(ptr,str);
+        arg_parser<T,Parser>::parse(ptr,str);
       }
     };
     // --------------------------------------------------------------
