@@ -43,6 +43,12 @@ int main(int argc, const char* argv[])
   std::map<std::string,std::pair<double,double>> m;
   foo f;
 
+  decltype(v) vec2{
+    std::array<std::string,3>{"b0ss","nyeez","lemon"},
+    std::array<std::string,3>{"b0ss","nyeez","lemon"},
+    std::array<std::string,3>{"b0ss","nyeez","lemon"}
+  };
+
   try {
     ap::args_parse()
       ("l,long",&l,"long"/*,ap::required*/)
@@ -52,7 +58,11 @@ int main(int argc, const char* argv[])
         [](int* i, const std::string& str){
           (*i) = str.size();
         }/*,ap::required*/)
-      ("v,vec",&v,"vector")
+      ("v,vec",&v,"vector",
+        std::tie(vec2)
+        // std::forward_as_tuple(std::array<std::string,3>{"b0ss","nyeez","lemon"})
+        // std::forward_as_tuple(vec2.begin(),++++vec2.begin())
+      )
       ("m,map",&m,"map")
       ("a,arr",&a,"array", std::forward_as_tuple(1,2))
       ("t,tup",&t,"tuple",
@@ -102,11 +112,13 @@ int main(int argc, const char* argv[])
   test( std::get<1>(t) )
   test( f.s )
   test( str1 )
+  cout << "\033[36mvector\033[0m\n";
   for (const auto& a : v) {
     for (const auto& s : a)
       cout << s << ' ';
     cout << endl;
   }
+  cout << "\033[36mmap\033[0m\n";
   for (const auto& p : m)
     cout << p.first << " : ["
          << p.second.first <<','<< p.second.second <<']'<< endl;
