@@ -20,10 +20,10 @@ template <typename T> struct is_##NAME : is_##NAME##_impl< \
 
 namespace ivanp {
 
-#if __cplusplus < 201402L
+// #if __cplusplus < 201402L
 template <bool B, typename T=void>
 using enable_if_t = typename std::enable_if<B,T>::type;
-#endif
+// #endif
 
 // boolean compositing **********************************************
 

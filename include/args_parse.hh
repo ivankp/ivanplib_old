@@ -70,37 +70,31 @@ namespace ivanp { namespace args_parse {
         enum { value = sizeof(f<A>(std::declval<A>())) == sizeof(yes) };
       };
 
-      template <size_t I>
-      inline typename std::enable_if<(I==sizeof...(Args)-1)>::type
+      template <size_t I> inline enable_if_t<(I==sizeof...(Args)-1)>
       assign_default_impl_get(T& x) const {
         std::get<I>(x) = std::forward<type<I>>(std::get<I>(args));
       }
-      template <size_t I>
-      inline typename std::enable_if<(I!=sizeof...(Args)-1)>::type
+      template <size_t I> inline enable_if_t<(I!=sizeof...(Args)-1)>
       assign_default_impl_get(T& x) const {
         std::get<I>(x) = std::forward<type<I>>(std::get<I>(args));
         assign_default_impl_get<I+1>(x);
       }
 
-      template <size_t... I>
-      inline typename std::enable_if<(sizeof...(I)!=1)>::type
+      template <size_t... I> inline enable_if_t<(sizeof...(I)!=1)>
       assign_default_impl(T& x, seq<I...>) const {
         x = T(std::forward<type<I>...>(std::get<I>(args))...);
       }
-      template <size_t... I>
-      inline typename std::enable_if<(sizeof...(I)==1)>::type
+      template <size_t... I> inline enable_if_t<(sizeof...(I)==1)>
       assign_default_impl(T& x, seq<I...>) const {
         x = std::forward<type<I>...>(std::get<0>(args));
       }
     public:
-      template <typename U=T>
-      inline typename std::enable_if< !has_get<U,0>::value >::type
+      template <typename U=T> inline enable_if_t< !has_get<U,0>::value >
       assign_default(void* ptr) const {
         assign_default_impl( *reinterpret_cast<U*>(ptr),
                              seq_up_to<sizeof...(Args)>() );
       }
-      template <typename U=T>
-      inline typename std::enable_if<  has_get<U,0>::value >::type
+      template <typename U=T> inline enable_if_t<  has_get<U,0>::value >
       assign_default(void* ptr) const {
         assign_default_impl_get<0>( *reinterpret_cast<U*>(ptr) );
       }
@@ -118,16 +112,16 @@ namespace ivanp { namespace args_parse {
       }
     public:
       template <typename U=T>
-      inline typename std::enable_if<
+      inline enable_if_t<
         sizeof...(Args)!=1 || !std::is_same< type<0>, U >::value
-      >::type assign_default(void* ptr) const {
+      > assign_default(void* ptr) const {
         assign_default_impl( *reinterpret_cast<std::vector<U,Alloc>*>(ptr),
                              seq_up_to<sizeof...(Args)>() );
       }
       template <typename U=T>
-      inline typename std::enable_if<
+      inline enable_if_t<
         sizeof...(Args)==1 && std::is_same< type<0>, U >::value
-      >::type assign_default(void* ptr) const {
+      > assign_default(void* ptr) const {
         *reinterpret_cast<std::vector<U,Alloc>*>(ptr)
           = std::forward<type<0>>(std::get<0>(args));
       }
@@ -160,15 +154,13 @@ namespace ivanp { namespace args_parse {
     struct arg_proxy_parser_default<std::array<T,N>> {
       using iter_t = std::string::const_iterator;
 
-      template <size_t I>
-      inline static typename std::enable_if<(I<N-1)>::type
+      template <size_t I> inline static enable_if_t<(I<N-1)>
       parse_impl(std::array<T,N>& x, iter_t begin, iter_t end) {
         auto delim = std::find(begin,end,':');
         default_parse(std::get<I>(x),begin,delim);
         if (delim!=end) parse_impl<I+1>(x,++delim,end);
       }
-      template <size_t I>
-      inline static typename std::enable_if<(I==N-1)>::type
+      template <size_t I> inline static enable_if_t<(I==N-1)>
       parse_impl(std::array<T,N>& x, iter_t begin, iter_t end) {
         default_parse(std::get<I>(x),begin,end);
       }
@@ -182,15 +174,13 @@ namespace ivanp { namespace args_parse {
     struct arg_proxy_parser_default<std::tuple<TT...>> {
       using iter_t = std::string::const_iterator;
 
-      template <size_t I>
-      inline static typename std::enable_if<(I<sizeof...(TT)-1)>::type
+      template <size_t I> inline static enable_if_t<(I<sizeof...(TT)-1)>
       parse_impl(std::tuple<TT...>& x, iter_t begin, iter_t end) {
         auto delim = std::find(begin,end,':');
         default_parse(std::get<I>(x),begin,delim);
         if (delim!=end) parse_impl<I+1>(x,++delim,end);
       }
-      template <size_t I>
-      inline static typename std::enable_if<(I==sizeof...(TT)-1)>::type
+      template <size_t I> inline static enable_if_t<(I==sizeof...(TT)-1)>
       parse_impl(std::tuple<TT...>& x, iter_t begin, iter_t end) {
         default_parse(std::get<I>(x),begin,end);
       }
@@ -204,15 +194,13 @@ namespace ivanp { namespace args_parse {
     struct arg_proxy_parser_default<std::pair<TT...>> {
       using iter_t = std::string::const_iterator;
 
-      template <size_t I>
-      inline static typename std::enable_if<(I==0)>::type
+      template <size_t I> inline static enable_if_t<(I==0)>
       parse_impl(std::pair<TT...>& x, iter_t begin, iter_t end) {
         auto delim = std::find(begin,end,':');
         default_parse(std::get<I>(x),begin,delim);
         if (delim!=end) parse_impl<I+1>(x,++delim,end);
       }
-      template <size_t I>
-      inline static typename std::enable_if<(I==1)>::type
+      template <size_t I> inline static enable_if_t<(I==1)>
       parse_impl(std::pair<TT...>& x, iter_t begin, iter_t end) {
         default_parse(std::get<I>(x),begin,end);
       }
@@ -229,10 +217,9 @@ namespace ivanp { namespace args_parse {
     template <typename T, typename = void>
     struct emplace_trait { enum { value = false }; };
 
-    template <typename T>
-    struct emplace_trait<T, typename std::enable_if<
+    template <typename T> struct emplace_trait<T, enable_if_t<
       has_emplace_back<T, typename T::value_type>::value
-    >::type> {
+    >> {
       enum { value = true };
       using type = typename T::value_type;
       template <typename... Args>
@@ -241,11 +228,10 @@ namespace ivanp { namespace args_parse {
       }
     };
 
-    template <typename T>
-    struct emplace_trait<T, typename std::enable_if<
+    template <typename T> struct emplace_trait<T, enable_if_t<
       !has_emplace_back<T, typename T::value_type>::value &&
       has_emplace<T, typename T::value_type>::value
-    >::type> {
+    >> {
       enum { value = true };
       using type = typename T::value_type;
       template <typename... Args>
@@ -254,12 +240,11 @@ namespace ivanp { namespace args_parse {
       }
     };
 
-    template <typename T>
-    struct emplace_trait<T, typename std::enable_if<
+    template <typename T> struct emplace_trait<T, enable_if_t<
       !has_emplace_back<T, typename T::value_type>::value &&
       !has_emplace<T, typename T::value_type>::value &&
       has_emplace_front<T, typename T::value_type>::value
-    >::type> {
+    >> {
       enum { value = true };
       using type = typename T::value_type;
       template <typename... Args>
@@ -269,9 +254,7 @@ namespace ivanp { namespace args_parse {
     };
 
     template <typename T>
-    struct arg_proxy_parser_default<T, typename std::enable_if<
-      emplace_trait<T>::value
-    >::type> {
+    struct arg_proxy_parser_default<T, enable_if_t<emplace_trait<T>::value>> {
       inline void parse(void* ptr, const std::string& str) const {
         typename emplace_trait<T>::type x;
         arg_proxy_parser_default<decltype(x)>::parse(&x,str);
@@ -286,58 +269,15 @@ namespace ivanp { namespace args_parse {
         parser(reinterpret_cast<T*>(ptr),str);
       }
     };
-    // TODO: specialize for by-element parsers
-
-    // template <typename T, typename Parser>
-    // struct arg_proxy_element_parser {
-    //   Parser parser;
-    //
-    //   DEFINE_BINARY_TRAIT(has_emplace_back, x1.emplace_back(x2));
-    //   DEFINE_BINARY_TRAIT(has_emplace, x1.emplace(x2));
-    //
-    //   template <typename U>
-    //   using enable_if_emplace_back_t = typename std::enable_if<
-    //     has_emplace_back<U,
-    //       decltype(parser(std::declval<const std::string&>()))
-    //     >::value
-    //   >::type;
-    //   template <typename U>
-    //   using enable_if_emplace_t = typename std::enable_if<
-    //     has_emplace<U,
-    //       decltype(parser(std::declval<const std::string&>()))
-    //     >::value
-    //   >::type;
-    //
-    //   template <typename U> inline enable_if_emplace_back_t<U>
-    //   parse_impl(void* ptr, const std::string& str) const {
-    //     reinterpret_cast<U*>(ptr)->emplace_back(parser(str));
-    //   }
-    //   template <typename U> inline enable_if_emplace_t<U>
-    //   parse_impl(void* ptr, const std::string& str) const {
-    //     reinterpret_cast<U*>(ptr)->emplace(parser(str));
-    //   }
-    //
-    //   inline void parse(void* ptr, const std::string& str) const {
-    //     parse_impl<T>(str);
-    //   }
-    // };
-    //
-    // template <typename T, typename Parser, typename Alloc>
-    // struct arg_proxy_parser<std::vector<T,Alloc>> {
-    //   Parser parser;
-    //   inline void parse(void* ptr, const std::string& str) const {
-    //     reinterpret_cast<std::vector<T,Alloc>*>(ptr)->emplace_back(parser(str));
-    //   }
-    // };
 
     // --------------------------------------------------------------
     template <typename T, typename = void>
     struct type_flags_trait { static constexpr auto value = flags_t::none; };
 
     template <typename T>
-    struct type_flags_trait<T, typename std::enable_if<
-      emplace_trait<T>::value
-    >::type> { static constexpr auto value = flags_t::multiple; };
+    struct type_flags_trait<T, enable_if_t<emplace_trait<T>::value>> {
+      static constexpr auto value = flags_t::multiple;
+    };
 
     template <typename T>
     inline flags_t type_flags(flags_t flags) const noexcept {
@@ -406,20 +346,20 @@ namespace ivanp { namespace args_parse {
     }
 
     template <typename S1, typename S2>
-    using call_enable_t = typename std::enable_if<
+    using call_enable_t = enable_if_t<
       std::is_convertible<S1,std::string>::value &&
       std::is_convertible<S2,std::string>::value,
-    args_parse >::type;
+    args_parse >;
 
     template <typename S1, typename S2, typename Func, typename T>
-    using call_enable_p_t = typename std::enable_if<
+    using call_enable_p_t = enable_if_t<
       is_callable<Func,T*,const std::string&>::value,
-    call_enable_t<S1,S2> >::type;
+    call_enable_t<S1,S2> >;
 
     template <typename S1, typename S2, typename Arg, typename T>
-    using call_enable_v1_t = typename std::enable_if<
+    using call_enable_v1_t = enable_if_t<
       std::is_convertible<Arg,T>::value,
-    call_enable_t<S1,S2> >::type;
+    call_enable_t<S1,S2> >;
 
     template <typename S1, typename S2, typename Arg, typename Func, typename T>
     using call_enable_v1p_t = typename std::tuple_element<0,std::pair<
