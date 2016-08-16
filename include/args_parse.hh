@@ -17,6 +17,7 @@
 
 #include "extra_traits.hh"
 #include "expression_traits.hh"
+#include "emplace_traits.hh"
 
 // TODO: switch to string_view
 // TODO: implement by-element parser passing
@@ -215,58 +216,11 @@ namespace ivanp { namespace args_parse {
     };
 
     template <typename T>
-    using elements_remove_const_t = typename elements_remove_const<T>::type;
-
-    DEFINE_BINARY_TRAIT(has_emplace_back, x1.emplace_back(x2));
-    DEFINE_BINARY_TRAIT(has_emplace, x1.emplace(x2));
-    DEFINE_BINARY_TRAIT(has_emplace_front, x1.emplace_front(x2));
-
-    template <typename T, typename = void>
-    struct emplace_trait { enum { value = false }; };
-
-    template <typename T> struct emplace_trait<T, enable_if_t<
-      has_emplace_back<T, typename T::value_type>::value
-    >> {
-      enum { value = true };
-      using type = elements_remove_const_t<typename T::value_type>;
-      template <typename... Args>
-      inline static void emplace(T* x, Args&&... args) {
-        x->emplace_back(std::forward<Args>(args)...);
-      }
-    };
-
-    template <typename T> struct emplace_trait<T, enable_if_t<
-      !has_emplace_back<T, typename T::value_type>::value &&
-      has_emplace<T, typename T::value_type>::value
-    >> {
-      enum { value = true };
-      using type = elements_remove_const_t<typename T::value_type>;
-      template <typename... Args>
-      inline static void emplace(T* x, Args&&... args) {
-        x->emplace(std::forward<Args>(args)...);
-      }
-    };
-
-    template <typename T> struct emplace_trait<T, enable_if_t<
-      !has_emplace_back<T, typename T::value_type>::value &&
-      !has_emplace<T, typename T::value_type>::value &&
-      has_emplace_front<T, typename T::value_type>::value
-    >> {
-      enum { value = true };
-      using type = elements_remove_const_t<typename T::value_type>;
-      template <typename... Args>
-      inline static void emplace(T* x, Args&&... args) {
-        x->emplace_front(std::forward<Args>(args)...);
-      }
-    };
-
-    template <typename T>
-    struct arg_proxy_parser_default<T, enable_if_t<emplace_trait<T>::value>> {
+    struct arg_proxy_parser_default<T, enable_if_t<can_emplace<T>::value>> {
       inline void parse(void* ptr, const std::string& str) const {
-        typename emplace_trait<T>::type x;
-        // show_type<decltype(x)>();
+        typename can_emplace<T>::type x;
         arg_proxy_parser_default<decltype(x)>::parse(&x,str);
-        emplace_trait<T>::emplace(reinterpret_cast<T*>(ptr),std::move(x));
+        can_emplace<T>::emplace(reinterpret_cast<T*>(ptr),std::move(x));
       }
     };
 
@@ -283,7 +237,7 @@ namespace ivanp { namespace args_parse {
     struct type_flags_trait { static constexpr auto value = flags_t::none; };
 
     template <typename T>
-    struct type_flags_trait<T, enable_if_t<emplace_trait<T>::value>> {
+    struct type_flags_trait<T, enable_if_t<can_emplace<T>::value>> {
       static constexpr auto value = flags_t::multiple;
     };
 

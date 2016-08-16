@@ -7,15 +7,16 @@
 #include <string>
 
 #include "test_marcos.hh"
+#include "template_traits.hh"
 #include "extra_traits.hh"
 
 struct foo { };
 struct bar { };
 
-DEFINE_IS_TEMPLATE_TRAIT(std::vector,vector);
-DEFINE_IS_TEMPLATE_TRAIT(std::basic_string,basic_string);
-DEFINE_IS_TYPE_TRAIT(std::string,string);
-DEFINE_IS_TYPE_TRAIT(foo,foo);
+DEFINE_IS_TEMPLATE_TRAIT(std::vector,is_vector);
+DEFINE_IS_TEMPLATE_TRAIT(std::basic_string,is_basic_string);
+DEFINE_IS_TYPE_TRAIT(std::string,is_string);
+DEFINE_IS_TYPE_TRAIT(foo,is_foo);
 
 #define L std::cout << std::endl;
 

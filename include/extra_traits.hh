@@ -5,24 +5,14 @@
 
 #include <type_traits>
 
-#define DEFINE_IS_TYPE_TRAIT(TYPE,NAME) \
-template <typename T> struct is_##NAME##_impl { enum { value = 0 }; }; \
-template <> struct is_##NAME##_impl<TYPE> { enum { value = 1 }; }; \
-template <typename T> struct is_##NAME : is_##NAME##_impl< \
-  typename std::remove_reference<typename std::remove_cv<T>::type>::type> { };
-
-#define DEFINE_IS_TEMPLATE_TRAIT(TYPE,NAME) \
-template <typename T> struct is_##NAME##_impl { enum { value = 0 }; }; \
-template <typename... TT> struct is_##NAME##_impl<TYPE<TT...>> \
-  { enum { value = 1 }; }; \
-template <typename T> struct is_##NAME : is_##NAME##_impl< \
-  typename std::remove_reference<typename std::remove_cv<T>::type>::type> { };
-
 namespace ivanp {
 
 // #if __cplusplus < 201402L
 template <bool B, typename T=void>
 using enable_if_t = typename std::enable_if<B,T>::type;
+
+template <std::size_t I, class Tuple>
+using tuple_element_t = typename std::tuple_element<I,Tuple>::type;
 // #endif
 
 // boolean compositing **********************************************
@@ -85,15 +75,17 @@ using remove_rvalue_reference_t = typename std::conditional<
   typename std::remove_reference<T>::type, T
 >::type;
 
-template <typename T> struct elements_remove_const { using type = T; };
-template <typename... TT>
-struct elements_remove_const<std::pair<TT...>> {
-  using type = std::pair<typename std::remove_const<TT>::type...>;
+template <typename T> struct remove_args_const { using type = T; };
+template <typename... Args>
+struct remove_args_const<std::pair<Args...>> {
+  using type = std::pair<typename std::remove_const<Args>::type...>;
 };
-template <typename... TT>
-struct elements_remove_const<std::tuple<TT...>> {
-  using type = std::tuple<typename std::remove_const<TT>::type...>;
+template <typename... Args>
+struct remove_args_const<std::tuple<Args...>> {
+  using type = std::tuple<typename std::remove_const<Args>::type...>;
 };
+template <typename T>
+using remove_args_const_t = typename remove_args_const<T>::type;
 
 // template <typename T>
 // using nonref_to_lref_t = typename std::conditional<
