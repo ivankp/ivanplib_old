@@ -19,6 +19,8 @@
 #include "expression_traits.hh"
 
 // TODO: switch to string_view
+// TODO: implement by-element parser passing
+// TODO: default functors
 
 namespace ivanp { namespace args_parse {
 
@@ -190,25 +192,30 @@ namespace ivanp { namespace args_parse {
       }
     };
 
-    template <typename... TT>
-    struct arg_proxy_parser_default<std::pair<TT...>> {
+    template <typename T1, typename T2>
+    struct arg_proxy_parser_default<std::pair<T1,T2>> {
       using iter_t = std::string::const_iterator;
 
       template <size_t I> inline static enable_if_t<(I==0)>
-      parse_impl(std::pair<TT...>& x, iter_t begin, iter_t end) {
+      parse_impl(std::pair<T1,T2>& x, iter_t begin, iter_t end) {
         auto delim = std::find(begin,end,':');
         default_parse(std::get<I>(x),begin,delim);
         if (delim!=end) parse_impl<I+1>(x,++delim,end);
       }
       template <size_t I> inline static enable_if_t<(I==1)>
-      parse_impl(std::pair<TT...>& x, iter_t begin, iter_t end) {
-        default_parse(std::get<I>(x),begin,end);
+      parse_impl(std::pair<T1,T2>& x, iter_t begin, iter_t end) {
+        // default_parse(std::get<I>(x),begin,end);
+        arg_proxy_parser_default<T2>::parse(&std::get<I>(x),{begin,end});
+        // TODO: prevent string copying by implementing parse_impl uniformly
       }
       inline static void parse(void* ptr, const std::string& str) {
-        parse_impl<0>(*reinterpret_cast<std::pair<TT...>*>(ptr),
+        parse_impl<0>(*reinterpret_cast<std::pair<T1,T2>*>(ptr),
                       str.begin(), str.end() );
       }
     };
+
+    template <typename T>
+    using elements_remove_const_t = typename elements_remove_const<T>::type;
 
     DEFINE_BINARY_TRAIT(has_emplace_back, x1.emplace_back(x2));
     DEFINE_BINARY_TRAIT(has_emplace, x1.emplace(x2));
@@ -221,7 +228,7 @@ namespace ivanp { namespace args_parse {
       has_emplace_back<T, typename T::value_type>::value
     >> {
       enum { value = true };
-      using type = typename T::value_type;
+      using type = elements_remove_const_t<typename T::value_type>;
       template <typename... Args>
       inline static void emplace(T* x, Args&&... args) {
         x->emplace_back(std::forward<Args>(args)...);
@@ -233,7 +240,7 @@ namespace ivanp { namespace args_parse {
       has_emplace<T, typename T::value_type>::value
     >> {
       enum { value = true };
-      using type = typename T::value_type;
+      using type = elements_remove_const_t<typename T::value_type>;
       template <typename... Args>
       inline static void emplace(T* x, Args&&... args) {
         x->emplace(std::forward<Args>(args)...);
@@ -246,7 +253,7 @@ namespace ivanp { namespace args_parse {
       has_emplace_front<T, typename T::value_type>::value
     >> {
       enum { value = true };
-      using type = typename T::value_type;
+      using type = elements_remove_const_t<typename T::value_type>;
       template <typename... Args>
       inline static void emplace(T* x, Args&&... args) {
         x->emplace_front(std::forward<Args>(args)...);
@@ -257,6 +264,7 @@ namespace ivanp { namespace args_parse {
     struct arg_proxy_parser_default<T, enable_if_t<emplace_trait<T>::value>> {
       inline void parse(void* ptr, const std::string& str) const {
         typename emplace_trait<T>::type x;
+        // show_type<decltype(x)>();
         arg_proxy_parser_default<decltype(x)>::parse(&x,str);
         emplace_trait<T>::emplace(reinterpret_cast<T*>(ptr),std::move(x));
       }

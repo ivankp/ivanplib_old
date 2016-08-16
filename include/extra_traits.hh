@@ -85,6 +85,16 @@ using remove_rvalue_reference_t = typename std::conditional<
   typename std::remove_reference<T>::type, T
 >::type;
 
+template <typename T> struct elements_remove_const { using type = T; };
+template <typename... TT>
+struct elements_remove_const<std::pair<TT...>> {
+  using type = std::pair<typename std::remove_const<TT>::type...>;
+};
+template <typename... TT>
+struct elements_remove_const<std::tuple<TT...>> {
+  using type = std::tuple<typename std::remove_const<TT>::type...>;
+};
+
 // template <typename T>
 // using nonref_to_lref_t = typename std::conditional<
 //   std::is_reference<T>::value,

@@ -2,6 +2,7 @@
 #include <sstream>
 #include <vector>
 #include <array>
+#include <map>
 
 #include "test_class.hh"
 #include "test_marcos.hh"
@@ -39,6 +40,7 @@ int main(int argc, const char* argv[])
   std::vector<std::array<std::string,3>> v;
   std::array<int,2> a;
   std::tuple<std::string,size_t> t{{},0};
+  std::map<std::string,std::pair<double,double>> m;
   foo f;
 
   try {
@@ -51,6 +53,7 @@ int main(int argc, const char* argv[])
           (*i) = str.size();
         }/*,ap::required*/)
       ("v,vec",&v,"vector")
+      ("m,map",&m,"map")
       ("a,arr",&a,"array", std::forward_as_tuple(1,2))
       ("t,tup",&t,"tuple"
         // ap::no_default,
@@ -104,6 +107,9 @@ int main(int argc, const char* argv[])
       cout << s << ' ';
     cout << endl;
   }
+  for (const auto& p : m)
+    cout << p.first << " : ["
+         << p.second.first <<','<< p.second.second <<']'<< endl;
 
   return 0;
 }
