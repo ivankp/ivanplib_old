@@ -7,7 +7,6 @@
 #include <memory>
 #include <algorithm>
 #include <string>
-#include <vector>
 #include <tuple>
 #include <unordered_map>
 
@@ -23,9 +22,13 @@
 #include "expression_traits.hh"
 #include "emplace_traits.hh"
 
-// TODO: switch to string_view
-// TODO: implement by-element parser passing
+// TODO: check for temporary copies with containers
+// TODO: switch to char*
+// TODO: positional arguments
+// TODO: write the algorithm
+
 // TODO: default functors
+// TODO: implement by-element parser passing
 
 namespace ivanp { namespace args_parse {
 
@@ -97,8 +100,6 @@ namespace ivanp { namespace args_parse {
                              seq_up_to<sizeof...(Args)>() );
       }
     };
-
-    // TODO: default from functional
 
     // arg_parser ---------------------------------------------
     template <typename T, typename = void>
