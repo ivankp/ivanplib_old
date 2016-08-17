@@ -4,12 +4,12 @@
 #include <array>
 #include <map>
 
-#include "test_class.hh"
-#include "test_marcos.hh"
-
 template <typename... TT> struct show_type;
 
 #include "args_parse.hh"
+
+#include "test_class.hh"
+#include "test_marcos.hh"
 
 using std::cout;
 using std::endl;

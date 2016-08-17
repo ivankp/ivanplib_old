@@ -11,9 +11,13 @@
 #include <tuple>
 #include <unordered_map>
 
-#include <sstream>
+#define ARGS_PARSE_USE_BOOST_LEXICAL_CAST
 
-// #include <boost/lexical_cast.hpp>
+#ifdef ARGS_PARSE_USE_BOOST_LEXICAL_CAST
+#include <boost/lexical_cast.hpp>
+#else
+#include <sstream>
+#endif
 
 #include "extra_traits.hh"
 #include "expression_traits.hh"
@@ -100,11 +104,13 @@ namespace ivanp { namespace args_parse {
     template <typename T, typename = void>
     struct arg_parser_default {
       inline static void parse(T& x, siter_t first, siter_t last) {
-        // (*reinterpret_cast<T*>(ptr)) = boost::lexical_cast<T>(str);
-        // TODO: refrain from stringstreams, parse without copying strings
-        std::stringstream ss;
-        std::copy(first, last, std::ostreambuf_iterator<char>(ss));
-        ss >> x;
+        #ifdef ARGS_PARSE_USE_BOOST_LEXICAL_CAST
+          x = boost::lexical_cast<T>(&*first,last-first);
+        #else
+          std::stringstream ss;
+          std::copy(first, last, std::ostreambuf_iterator<char>(ss));
+          ss >> x;
+        #endif
       }
       inline static void parse(void* ptr, const std::string& str) {
         parse(*reinterpret_cast<T*>(ptr),str.begin(),str.end());
@@ -246,6 +252,7 @@ namespace ivanp { namespace args_parse {
     std::unordered_map<void*,std::unique_ptr<arg_proxy_base>> argmap;
     // value needs to be a pointer for polymorphism to work
     // TODO: make sure this is the best way
+    // TODO: find out why argmap needs to be an unordered_map
 
     void argmap_add(void* ptr, arg_proxy_base* proxy) {
       argmap.emplace( std::piecewise_construct,
