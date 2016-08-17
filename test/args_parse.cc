@@ -40,7 +40,9 @@ int main(int argc, const char* argv[])
   std::vector<std::array<std::string,3>> v;
   std::array<int,2> a;
   std::tuple<std::string,size_t> t{{},0};
-  std::map<std::string,std::pair<double,double>> m;
+  // std::map<std::string,std::pair<double,double>> m;
+  std::map<std::string,std::vector<std::string>> m;
+  // std::vector<std::map<std::string,std::string>> vm;
   foo f;
 
   decltype(v) vec2{
@@ -63,7 +65,12 @@ int main(int argc, const char* argv[])
         // std::forward_as_tuple(std::array<std::string,3>{"b0ss","nyeez","lemon"})
         // std::forward_as_tuple(vec2.begin(),++++vec2.begin())
       )
-      ("m,map",&m,"map")
+      ("m,map",&m,"map",
+        ap::no_default,
+        [](decltype(m)* m, const std::string& str){
+          const auto d = str.find(':');
+          (*m)[{str.data(),d}].emplace_back(str.data()+d+1);
+        })
       ("a,arr",&a,"array", std::forward_as_tuple(1,2))
       ("t,tup",&t,"tuple",
         // ap::no_default,
@@ -119,9 +126,15 @@ int main(int argc, const char* argv[])
     cout << endl;
   }
   cout << "\033[36mmap\033[0m\n";
-  for (const auto& p : m)
-    cout << p.first << " : ["
-         << p.second.first <<','<< p.second.second <<']'<< endl;
+  for (const auto& p : m) {
+    cout << p.first << " :";
+    for (const auto& s : p.second) cout <<' '<< s;
+    cout << endl;
+  }
+  // for (const auto& m : vm) {
+  //   for (const auto& p : m)
+  //     cout << p.first << " : " << p.second << endl;
+  // }
 
   return 0;
 }

@@ -10,7 +10,7 @@ namespace ivanp { namespace args_parse {
 
 // TODO: add syntax for short and long options
 
-args_parse& args_parse::parse(int argc, char const **argv) {
+args_parse& args_parse::parse(int argc, char const * const * const argv) {
   for (const auto& opt : argmap) {
     string short_opt, long_opt;
     const string& opt_str = opt.second->opt;

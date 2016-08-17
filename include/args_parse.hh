@@ -58,9 +58,7 @@ namespace ivanp { namespace args_parse {
     template <typename T, typename... Args>
     struct arg_value {
       mutable std::tuple<Args...> args;
-      // show_type<Args...> pack_types;
-      // show_type<decltype(args)> tuple_type;
-      // show_type<seq<sizeof(args)>> tuple_size;
+    private:
       template <size_t I>
       using type = typename std::tuple_element<I, std::tuple<Args...>>::type;
 
@@ -73,16 +71,15 @@ namespace ivanp { namespace args_parse {
         enum { value = sizeof(f<A>(std::declval<A>())) == sizeof(yes) };
       };
 
-    private:
+      template <size_t... I> inline enable_if_t<
+        sizeof...(I)==1 && !can_emplace<T>::value && !has_get<T,0>::value
+      > assign_default_impl(T& x, seq<I...>) const {
+        x = std::forward<type<0>>(std::get<0>(args));
+      }
       template <size_t... I> inline enable_if_t<
         (sizeof...(I)!=1 || can_emplace<T>::value) && !has_get<T,0>::value
       > assign_default_impl(T& x, seq<I...>) const {
         x = {std::forward<type<I>>(std::get<I>(args))...};
-      }
-      template <size_t... I> inline enable_if_t<
-        (sizeof...(I)==1 && !can_emplace<T>::value) && !has_get<T,0>::value
-      > assign_default_impl(T& x, seq<I...>) const {
-        x = std::forward<type<0>>(std::get<0>(args));
       }
       template <size_t... I> inline enable_if_t<
         sizeof...(I) && has_get<T,0>::value
@@ -141,10 +138,13 @@ namespace ivanp { namespace args_parse {
     // containters
     template <typename T>
     struct arg_parser_default<T, enable_if_t<can_emplace<T>::value>> {
-      inline void parse(void* ptr, const std::string& str) const {
+      inline static void parse(T& xx, siter_t begin, siter_t end) {
         typename can_emplace<T>::type x;
-        arg_parser_default<decltype(x)>::parse(&x,str);
-        can_emplace<T>::emplace(reinterpret_cast<T*>(ptr),std::move(x));
+        arg_parser_default<decltype(x)>::parse(x,begin,end);
+        can_emplace<T>::emplace(&xx,std::move(x));
+      }
+      inline static void parse(void* ptr, const std::string& str) {
+        parse(*reinterpret_cast<T*>(ptr),str.begin(),str.end());
       }
     };
 
@@ -256,7 +256,7 @@ namespace ivanp { namespace args_parse {
 
   public:
     args_parse() = default;
-    args_parse& parse(int argc, char const **argv);
+    args_parse& parse(int argc, char const * const * const argv);
 
     // call operators -----------------------------------------------
     template <typename T, typename S1, typename S2>
