@@ -1,11 +1,11 @@
 # Written by Ivan Pogrebnyak
 
-# TODO: fix problem with running in multiple threads
+# TODO: fix problem with making in multiple threads
 
 CXX := g++
 STD := -std=c++11
 DF := $(STD)
-CF := $(STD) -Wall # -O3 -flto
+CF := $(STD) -Wall #-O3 #-flto
 LF := $(STD) #-flto
 
 CF += -Iinclude

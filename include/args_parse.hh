@@ -8,9 +8,9 @@
 #include <algorithm>
 #include <string>
 #include <tuple>
-#include <unordered_map>
-
-#define ARGS_PARSE_USE_BOOST_LEXICAL_CAST
+#include <vector>
+#include <map>
+#include <stdexcept>
 
 #ifdef ARGS_PARSE_USE_BOOST_LEXICAL_CAST
 #include <boost/lexical_cast.hpp>
@@ -47,17 +47,15 @@ namespace ivanp { namespace args_parse {
 
     // arg_proxy_base -----------------------------------------------
     struct arg_proxy_base {
-      std::string opt, desc;
+      void* ptr;
       flags_t flags;
       int count;
 
-      template <typename S1, typename S2>
-      arg_proxy_base(S1&& opt, S2&& desc, flags_t flags)
-      : opt(std::forward<S1>(opt)), desc(std::forward<S2>(desc)),
-        flags(flags), count(0) { }
+      arg_proxy_base(void* ptr, flags_t flags)
+      : ptr(ptr), flags(flags), count(0) { }
 
-      virtual void parse(void* ptr, const std::string& str) const =0;
-      virtual void assign_default(void* ptr) const { }
+      virtual void parse(const std::string& str) const =0;
+      virtual void assign_default() const { }
       virtual ~arg_proxy_base() { }
     };
 
@@ -181,30 +179,30 @@ namespace ivanp { namespace args_parse {
     template <typename T>
     struct arg_proxy: arg_proxy_base, arg_parser_default<T> {
       using arg_proxy_base::arg_proxy_base;
-      virtual void parse(void* ptr, const std::string& str) const {
-        arg_parser_default<T>::parse(ptr,str);
+      virtual void parse(const std::string& str) const {
+        arg_parser_default<T>::parse(arg_proxy_base::ptr, str);
       }
     };
 
     template <typename T, typename... Args>
     struct arg_proxy_v: arg_proxy<T>, arg_value<T,Args...> {
-      template <typename S1, typename S2, typename Tuple>
-      arg_proxy_v(S1&& opt, S2&& desc, flags_t flags, Tuple&& args)
-      : arg_proxy<T>(std::forward<S1>(opt), std::forward<S2>(desc), flags),
+      template <typename Tuple>
+      arg_proxy_v(void* ptr, flags_t flags, Tuple&& args)
+      : arg_proxy<T>(ptr, flags),
         arg_value<T,Args...>{std::forward<Tuple>(args)} { }
-      virtual void assign_default(void* ptr) const {
-        arg_value<T,Args...>::assign_default(ptr);
+      virtual void assign_default() const {
+        arg_value<T,Args...>::assign_default(arg_proxy_base::ptr);
       }
     };
 
     template <typename T, typename Parser>
     struct arg_proxy_p: arg_proxy_base, arg_parser<T,Parser> {
-      template <typename S1, typename S2, typename Func>
-      arg_proxy_p(S1&& opt, S2&& desc, flags_t flags, Func&& parser)
-      : arg_proxy_base(std::forward<S1>(opt), std::forward<S2>(desc), flags),
+      template <typename Func>
+      arg_proxy_p(void* ptr, flags_t flags, Func&& parser)
+      : arg_proxy_base(ptr, flags),
         arg_parser<T,Parser>{std::forward<Func>(parser)} { }
-      virtual void parse(void* ptr, const std::string& str) const {
-        arg_parser<T,Parser>::parse(ptr,str);
+      virtual void parse(const std::string& str) const {
+        arg_parser<T,Parser>::parse(arg_proxy_base::ptr,str);
       }
     };
 
@@ -212,17 +210,16 @@ namespace ivanp { namespace args_parse {
     struct arg_proxy_vp: arg_proxy_base, arg_value<T,Args...>,
       arg_parser<T,Parser>
     {
-      template <typename S1, typename S2, typename Tuple, typename Func>
-      arg_proxy_vp(S1&& opt, S2&& desc, flags_t flags,
-        Tuple&& args, Func&& parser)
-      : arg_proxy_base(std::forward<S1>(opt), std::forward<S2>(desc), flags),
+      template <typename Tuple, typename Func>
+      arg_proxy_vp(void* ptr, flags_t flags, Tuple&& args, Func&& parser)
+      : arg_proxy_base(ptr, flags),
         arg_value<T,Args...>{std::forward<Tuple>(args)},
         arg_parser<T,Parser>{std::forward<Func>(parser)} { }
-      virtual void assign_default(void* ptr) const {
-        arg_value<T,Args...>::assign_default(ptr);
+      virtual void assign_default() const {
+        arg_value<T,Args...>::assign_default(arg_proxy_base::ptr);
       }
-      virtual void parse(void* ptr, const std::string& str) const {
-        arg_parser<T,Parser>::parse(ptr,str);
+      virtual void parse(const std::string& str) const {
+        arg_parser<T,Parser>::parse(arg_proxy_base::ptr,str);
       }
     };
 
@@ -250,113 +247,144 @@ namespace ivanp { namespace args_parse {
     >>::type;
 
     // argmap -------------------------------------------------------
-    std::unordered_map<void*,std::unique_ptr<arg_proxy_base>> argmap;
+    // std::unordered_map<void*,std::unique_ptr<arg_proxy_base>> argmap;
     // value needs to be a pointer for polymorphism to work
     // TODO: make sure this is the best way
     // TODO: find out why argmap needs to be an unordered_map
 
-    void argmap_add(void* ptr, arg_proxy_base* proxy) {
-      argmap.emplace( std::piecewise_construct,
-        std::forward_as_tuple(ptr),
-        std::forward_as_tuple(proxy)
-      );
+    // void add_arg(void* ptr, arg_proxy_base* proxy) {
+    //   argmap.emplace( std::piecewise_construct,
+    //     std::forward_as_tuple(ptr),
+    //     std::forward_as_tuple(proxy)
+    //   );
+    // }
+
+    std::vector<arg_proxy_base*> arg_proxies;
+    std::map<std::string,arg_proxy_base*> long_argmap;
+    std::map<char,arg_proxy_base*> short_argmap;
+    std::vector<std::pair<std::string,std::string>> arg_descs;
+
+    template <typename S1, typename S2>
+    void add_arg(S1&& opt, S2&& desc, arg_proxy_base* proxy) {
+      arg_proxies.push_back(proxy);
+      std::string opts(std::forward<S1>(opt));
+      for (size_t i=0, j=opts.find(','); ; ) {
+        const size_t n = j-i;
+
+        if (n==1) {
+          if (!short_argmap.emplace(
+            std::piecewise_construct,
+            std::forward_as_tuple(opts[i]),
+            std::forward_as_tuple(proxy)).second) throw std::runtime_error(
+              "duplicate option: "+opts.substr(i,n));
+        } else {
+          if (!long_argmap.emplace(
+            std::piecewise_construct,
+            std::forward_as_tuple(opts,i,n),
+            std::forward_as_tuple(proxy)).second) throw std::runtime_error(
+              "duplicate option: "+opts.substr(i,n));
+        }
+
+        if (j==std::string::npos) break;
+        j = opts.find(',',i=j+1);
+      }
+      arg_descs.emplace_back(std::move(opts),std::forward<S2>(desc));
     }
 
   public:
     args_parse() = default;
-    args_parse& parse(int argc, char const * const * const argv);
+    args_parse& parse(int argc, char const * const * argv);
+    ~args_parse() { for (auto* proxy : arg_proxies) delete proxy; }
 
     // call operators -----------------------------------------------
     template <typename T, typename S1, typename S2>
     call_enable_t<S1,S2>&
-    operator()( S1&& option, T* x, S2&& desc, flags_t flags=flags_t::none) {
-      argmap_add(x, new arg_proxy<T>(
-        std::forward<S1>(option), std::forward<S2>(desc), arg_flags<T>(flags)) );
+    operator()( S1&& opt, T* x, S2&& desc, flags_t flags=flags_t::none) {
+      add_arg(std::forward<S1>(opt), std::forward<S2>(desc),
+        new arg_proxy<T>(x, arg_flags<T>(flags)) );
       return *this;
     }
 
     template <typename T, typename S1, typename S2, typename... Args>
     call_enable_t<S1,S2>&
-    operator()( S1&& option, T* x, S2&& desc, const std::tuple<Args...>& args,
+    operator()( S1&& opt, T* x, S2&& desc, const std::tuple<Args...>& args,
       flags_t flags=flags_t::none)
     {
-      argmap_add(x, new arg_proxy_v<T, remove_rvalue_reference_t<Args>...>(
-        std::forward<S1>(option), std::forward<S2>(desc), arg_flags<T>(flags),
-        args) );
+      add_arg(std::forward<S1>(opt), std::forward<S2>(desc),
+        new arg_proxy_v<T, remove_rvalue_reference_t<Args>...>(
+          x, arg_flags<T>(flags), args) );
       return *this;
     }
 
     template <typename T, typename S1, typename S2, typename... Args>
     call_enable_t<S1,S2>&
-    operator()( S1&& option, T* x, S2&& desc, std::tuple<Args...>&& args,
+    operator()( S1&& opt, T* x, S2&& desc, std::tuple<Args...>&& args,
       flags_t flags=flags_t::none)
     {
-      argmap_add(x, new arg_proxy_v<T, remove_rvalue_reference_t<Args>...>(
-        std::forward<S1>(option), std::forward<S2>(desc), arg_flags<T>(flags),
-        std::move(args)) );
+      add_arg(std::forward<S1>(opt), std::forward<S2>(desc),
+        new arg_proxy_v<T, remove_rvalue_reference_t<Args>...>(
+          x, arg_flags<T>(flags), std::move(args)) );
       return *this;
     }
 
     template <typename T, typename S1, typename S2, typename Arg>
     call_enable_v1_t<S1,S2,Arg,T>&
-    operator()( S1&& option, T* x, S2&& desc, Arg&& arg,
+    operator()( S1&& opt, T* x, S2&& desc, Arg&& arg,
       flags_t flags=flags_t::none)
     {
-      argmap_add(x, new arg_proxy_v<T,Arg>(
-        std::forward<S1>(option), std::forward<S2>(desc), arg_flags<T>(flags),
-        std::forward_as_tuple(std::forward<Arg>(arg)) ) );
+      add_arg(std::forward<S1>(opt), std::forward<S2>(desc),
+        new arg_proxy_v<T,Arg>(x, arg_flags<T>(flags),
+          std::forward_as_tuple(std::forward<Arg>(arg)) ) );
       return *this;
     }
 
     template <typename T, typename S1, typename S2, typename Parser>
     call_enable_p_t<S1,S2,Parser,T>&
-    operator()( S1&& option, T* x, S2&& desc, no_default_t, Parser&& parser,
+    operator()( S1&& opt, T* x, S2&& desc, no_default_t, Parser&& parser,
       flags_t flags=flags_t::none)
     {
-      argmap_add(x, new arg_proxy_p<T, Parser>(
-        std::forward<S1>(option), std::forward<S2>(desc), arg_flags<T>(flags),
-        std::forward<Parser>(parser) ) );
+      add_arg(std::forward<S1>(opt), std::forward<S2>(desc),
+        new arg_proxy_p<T, Parser>(
+          x, arg_flags<T>(flags), std::forward<Parser>(parser) ) );
       return *this;
     }
 
     template <typename T, typename S1, typename S2,
               typename Parser, typename... Args>
     call_enable_p_t<S1,S2,Parser,T>&
-    operator()( S1&& option, T* x, S2&& desc,
+    operator()( S1&& opt, T* x, S2&& desc,
       const std::tuple<Args...>& args, Parser&& parser,
       flags_t flags=flags_t::none)
     {
-      argmap_add(x,
+      add_arg(std::forward<S1>(opt), std::forward<S2>(desc),
         new arg_proxy_vp<T, Parser, remove_rvalue_reference_t<Args>...>(
-          std::forward<S1>(option), std::forward<S2>(desc), arg_flags<T>(flags),
-          args, std::forward<Parser>(parser) ) );
+          x, arg_flags<T>(flags), args, std::forward<Parser>(parser) ) );
       return *this;
     }
 
     template <typename T, typename S1, typename S2,
               typename Parser, typename... Args>
     call_enable_p_t<S1,S2,Parser,T>&
-    operator()( S1&& option, T* x, S2&& desc,
+    operator()( S1&& opt, T* x, S2&& desc,
       std::tuple<Args...>&& args, Parser&& parser,
       flags_t flags=flags_t::none)
     {
-      argmap_add(x,
+      add_arg(std::forward<S1>(opt), std::forward<S2>(desc),
         new arg_proxy_vp<T, Parser, remove_rvalue_reference_t<Args>...>(
-          std::forward<S1>(option), std::forward<S2>(desc), arg_flags<T>(flags),
-          std::move(args), std::forward<Parser>(parser) ) );
+          x, arg_flags<T>(flags), std::move(args),
+          std::forward<Parser>(parser) ) );
       return *this;
     }
 
     template <typename T, typename S1, typename S2,
               typename Parser, typename Arg>
     call_enable_v1p_t<S1,S2,Arg,Parser,T>&
-    operator()( S1&& option, T* x, S2&& desc, Arg&& arg, Parser&& parser,
+    operator()( S1&& opt, T* x, S2&& desc, Arg&& arg, Parser&& parser,
       flags_t flags=flags_t::none)
     {
-      argmap_add(x,
+      add_arg(std::forward<S1>(opt), std::forward<S2>(desc),
         new arg_proxy_vp<T, Parser, Arg>(
-          std::forward<S1>(option), std::forward<S2>(desc), arg_flags<T>(flags),
-          std::forward_as_tuple(std::forward<Arg>(arg)),
+          x, arg_flags<T>(flags), std::forward_as_tuple(std::forward<Arg>(arg)),
           std::forward<Parser>(parser) ) );
       return *this;
     }

@@ -6,6 +6,7 @@
 
 template <typename... TT> struct show_type;
 
+#define ARGS_PARSE_USE_BOOST_LEXICAL_CAST
 #include "args_parse.hh"
 
 #include "test_class.hh"
@@ -45,12 +46,6 @@ int main(int argc, const char* argv[])
   // std::vector<std::map<std::string,std::string>> vm;
   foo f;
 
-  decltype(v) vec2{
-    std::array<std::string,3>{"b0ss","nyeez","lemon"},
-    std::array<std::string,3>{"b0ss","nyeez","lemon"},
-    std::array<std::string,3>{"b0ss","nyeez","lemon"}
-  };
-
   try {
     ap::args_parse()
       ("l,long",&l,"long"/*,ap::required*/)
@@ -60,11 +55,7 @@ int main(int argc, const char* argv[])
         [](int* i, const std::string& str){
           (*i) = str.size();
         }/*,ap::required*/)
-      ("v,vec",&v,"vector",
-        std::tie(vec2)
-        // std::forward_as_tuple(std::array<std::string,3>{"b0ss","nyeez","lemon"})
-        // std::forward_as_tuple(vec2.begin(),++++vec2.begin())
-      )
+      ("v,vec",&v,"vector")
       ("m,map",&m,"map",
         ap::no_default,
         [](decltype(m)* m, const std::string& str){

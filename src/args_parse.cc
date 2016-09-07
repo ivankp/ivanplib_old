@@ -1,48 +1,44 @@
 #include "args_parse.hh"
 
-#include <stdexcept>
+#include <cstring>
 
 #include "test_marcos.hh"
 
-using namespace std;
-
 namespace ivanp { namespace args_parse {
 
-// TODO: add syntax for short and long options
-
-args_parse& args_parse::parse(int argc, char const * const * const argv) {
-  for (const auto& opt : argmap) {
-    string short_opt, long_opt;
-    const string& opt_str = opt.second->opt;
-
-    if (opt_str.size()==1) {
-      short_opt = string("-")+opt_str[0];
-    } else if (opt_str.size()>1) {
-      if (opt_str[1]==',') {
-        short_opt = string("-")+opt_str[0];
-        long_opt = opt_str.substr(2);
-      } else {
-        long_opt = opt_str;
-      }
-    } else throw runtime_error("blank option string");
-
-    for (int argi=1; argi<argc; ++argi) {
-      if ( (short_opt.size() && short_opt==argv[argi])
-        || ( long_opt.size() &&  long_opt==argv[argi]) ) {
-        if ( !(opt.second->flags & multiple)
-          && opt.second->count ) throw runtime_error(
-            "unique argument "+opt_str+" passed more then once");
-        ++opt.second->count;
-        opt.second->parse(opt.first,argv[++argi]);
-      }
+args_parse& args_parse::parse(int argc, char const * const * argv) {
+  arg_proxy_base* opt = nullptr;
+  for (int i=1; i<argc; ++i) {
+    const auto len = strlen(argv[i]);
+    if (len>0 && argv[i][0]=='-') { // option
+      if (len>1 && argv[i][1]=='-') { // long option
+        auto opt_it = long_argmap.find(argv[i]+2);
+        if (opt_it==long_argmap.end()) throw std::runtime_error(
+          std::string("unknown option: --")+(argv[i]+2));
+        opt = opt_it->second;
+      } else if (len==2) { // short option
+        auto opt_it = short_argmap.find(argv[i][1]);
+        if (opt_it==short_argmap.end()) throw std::runtime_error(
+          std::string("unknown option: -")+argv[i][1]);
+        opt = opt_it->second;
+      } else throw std::runtime_error(
+        std::string("unexpected program argument: ")+argv[i]);
+    } else { // value
+      if ( !(opt->flags & multiple) && opt->count ) throw std::runtime_error(
+          std::string("unique argument ")+argv[i]+" passed more than once");
+      ++opt->count;
+      opt->parse(argv[i]);
     }
+  }
 
-    if (opt.second->count==0) {
-      if (opt.second->flags & flags_t::required)
-        throw runtime_error("required argument "+opt_str+" not passed");
-      // if (opt.second->iflags & has_default)
-        opt.second->assign_default(opt.first);
-    }
+  // TODO: let proxies know about their strings
+
+  for (arg_proxy_base* opt : arg_proxies) {
+    if (opt->count==0 && (opt->flags & flags_t::required))
+      throw std::runtime_error("required argument ... not passed");
+  }
+  for (arg_proxy_base* opt : arg_proxies) {
+    if (opt->count==0) opt->assign_default();
   }
 
   return *this;
