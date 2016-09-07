@@ -22,10 +22,10 @@
 #include "expression_traits.hh"
 #include "emplace_traits.hh"
 
-// TODO: check for temporary copies with containers
 // TODO: switch to char*
-// TODO: positional arguments
 // TODO: write the algorithm
+// TODO: positional arguments
+// TODO: check for temporary copies with containers
 
 // TODO: default functors
 // TODO: implement by-element parser passing

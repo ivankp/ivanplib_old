@@ -97,7 +97,7 @@ int main(int argc, const char* argv[])
         })
       .parse(argc,argv);
   } catch ( std::exception& e ) {
-    std::cerr << "args: " << e.what() << std::endl;
+    std::cerr << "\033[31margs:\033[0m " << e.what() << std::endl;
     return 1;
   }
 

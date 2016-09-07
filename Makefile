@@ -5,7 +5,7 @@
 CXX := g++
 STD := -std=c++11
 DF := $(STD)
-CF := $(STD) -Wall #-O3 #-flto
+CF := $(STD) -Wall #-Og #-flto
 LF := $(STD) #-flto
 
 CF += -Iinclude
