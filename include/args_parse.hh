@@ -247,18 +247,6 @@ namespace ivanp { namespace args_parse {
     >>::type;
 
     // argmap -------------------------------------------------------
-    // std::unordered_map<void*,std::unique_ptr<arg_proxy_base>> argmap;
-    // value needs to be a pointer for polymorphism to work
-    // TODO: make sure this is the best way
-    // TODO: find out why argmap needs to be an unordered_map
-
-    // void add_arg(void* ptr, arg_proxy_base* proxy) {
-    //   argmap.emplace( std::piecewise_construct,
-    //     std::forward_as_tuple(ptr),
-    //     std::forward_as_tuple(proxy)
-    //   );
-    // }
-
     std::vector<arg_proxy_base*> arg_proxies;
     std::map<std::string,arg_proxy_base*> long_argmap;
     std::map<char,arg_proxy_base*> short_argmap;
