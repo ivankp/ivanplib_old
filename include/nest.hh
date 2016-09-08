@@ -11,4 +11,7 @@ struct nest<T,1,Arg1,Args...> {
   using type = T<Arg1,Args...>;
 };
 
+template <template <typename...> class T, size_t N, typename Arg1, typename... Args>
+using nest_t = typename nest<T,N,Arg1,Args...>::type;
+
 #endif
