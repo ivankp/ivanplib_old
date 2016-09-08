@@ -1,6 +1,3 @@
 /.build
-/test/binner
-/test/sumsq
-/test/tc
-/test/test
+/test/[^\.]*
 /TODO
