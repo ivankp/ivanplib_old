@@ -14,7 +14,7 @@ args_parse& args_parse::parse(int argc, char const * const * argv) {
       if (len>1 && argv[i][1]=='-') { // long option
         auto opt_it = long_argmap.find(argv[i]+2);
         if (opt_it==long_argmap.end()) throw std::runtime_error(
-          std::string("unknown option: --")+(argv[i]+2));
+          std::string("unknown option: ").append(argv[i],len));
         opt = opt_it->second;
       } else if (len==2) { // short option
         auto opt_it = short_argmap.find(argv[i][1]);
@@ -22,12 +22,13 @@ args_parse& args_parse::parse(int argc, char const * const * argv) {
           std::string("unknown option: -")+argv[i][1]);
         opt = opt_it->second;
       } else throw std::runtime_error(
-        std::string("unexpected program argument: ")+argv[i]);
+        std::string("unexpected program argument: ").append(argv[i],len));
     } else { // value
       if ( !(opt->flags & multiple) && opt->count ) throw std::runtime_error(
-          std::string("unique argument ")+argv[i]+" passed more than once");
+          std::string("unique argument ").append(argv[i],len)
+          + " passed more than once");
       ++opt->count;
-      opt->parse(argv[i]);
+      opt->parse(argv[i],len);
     }
   }
 

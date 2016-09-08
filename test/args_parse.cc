@@ -52,23 +52,23 @@ int main(int argc, const char* argv[])
       ("d,double",&d,"double", 5.5)
       ("s,string",&str,"string", str1)
       ("i,int",&i,"int", -1,
-        [](int* i, const std::string& str){
-          (*i) = str.size();
+        [](int* i, const char* str, size_t n){
+          (*i) = n;
         }/*,ap::required*/)
       ("v,vec",&v,"vector")
       ("m,map",&m,"map",
         ap::no_default,
-        [](decltype(m)* m, const std::string& str){
-          const auto d = str.find(':');
-          (*m)[{str.data(),d}].emplace_back(str.data()+d+1);
+        [](decltype(m)* m, const char* str, size_t n){
+          const char* d = std::find(str,str+n,':');
+          (*m)[std::string(str,d-str)].emplace_back(d+1);
         })
       ("a,arr",&a,"array", std::forward_as_tuple(1,2))
       ("t,tup",&t,"tuple",
         // ap::no_default,
         std::forward_as_tuple("text",42)
-        // [](decltype(t)* t, const std::string& str){
-        //   std::get<0>(*t) = str;
-        //   std::get<1>(*t) = str.size();
+        // [](decltype(t)* t, const char* str, size_t n){
+        //   std::get<0>(*t) = {str,n};
+        //   std::get<1>(*t) = n;
         // }
       )
       ("f,foo",&f,"test class",
@@ -92,8 +92,8 @@ int main(int argc, const char* argv[])
         // std::tie(str1),
         // std::get<0>(tup3),
         // std::tie(std::get<0>(tup3)),
-        [](foo* f, const std::string& str){
-          *f = str;
+        [](foo* f, const char* str, size_t n){
+          *f = {str,n};
         })
       .parse(argc,argv);
   } catch ( std::exception& e ) {

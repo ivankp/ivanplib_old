@@ -15,7 +15,8 @@
 #ifdef ARGS_PARSE_USE_BOOST_LEXICAL_CAST
 #include <boost/lexical_cast.hpp>
 #else
-#include <sstream>
+#include <iostream>
+#include <streambuf>
 #endif
 
 #include "extra_traits.hh"
@@ -43,8 +44,6 @@ namespace ivanp { namespace args_parse {
   constexpr no_default_t no_default;
 
   class args_parse {
-    using siter_t = std::string::const_iterator;
-
     // arg_proxy_base -----------------------------------------------
     struct arg_proxy_base {
       void* ptr;
@@ -54,7 +53,7 @@ namespace ivanp { namespace args_parse {
       arg_proxy_base(void* ptr, flags_t flags)
       : ptr(ptr), flags(flags), count(0) { }
 
-      virtual void parse(const std::string& str) const =0;
+      virtual void parse(const char* str, size_t n) const =0;
       virtual void assign_default() const { }
       virtual ~arg_proxy_base() { }
     };
@@ -102,17 +101,23 @@ namespace ivanp { namespace args_parse {
     // arg_parser ---------------------------------------------
     template <typename T, typename = void>
     struct arg_parser_default {
-      inline static void parse(T& x, siter_t first, siter_t last) {
+      struct membuf : std::streambuf {
+        membuf(const char* str, size_t n) {
+          char *p = const_cast<char*>(str);
+          this->setg(p, p, p+n);
+        }
+      };
+
+      inline static void parse(T& x, const char* str, size_t n) {
         #ifdef ARGS_PARSE_USE_BOOST_LEXICAL_CAST
-          x = boost::lexical_cast<T>(&*first,last-first);
+          x = boost::lexical_cast<T>(str,n);
         #else
-          std::stringstream ss;
-          std::copy(first, last, std::ostreambuf_iterator<char>(ss));
-          ss >> x;
+          membuf buf(str,n);
+          std::istream(&buf) >> x;
         #endif
       }
-      inline static void parse(void* ptr, const std::string& str) {
-        parse(*reinterpret_cast<T*>(ptr),str.begin(),str.end());
+      inline static void parse(void* ptr, const char* str, size_t n) {
+        parse(*reinterpret_cast<T*>(ptr),str,n);
       }
     };
 
@@ -123,41 +128,43 @@ namespace ivanp { namespace args_parse {
       template <size_t I> using type = tuple_element_t<I,T>;
 
       template <size_t I> inline static enable_if_t<(I<size-1)>
-      parse_impl(T& x, siter_t begin, siter_t end) {
-        auto delim = std::find(begin,end,':');
-        arg_parser_default<type<I>>::parse(std::get<I>(x),begin,delim);
-        if (delim!=end) parse_impl<I+1>(x,++delim,end);
+      parse_impl(T& x, const char* str, size_t n) {
+        const char* delim = std::find(str,str+n,':');
+        const size_t n1 = delim-str;
+        const size_t n2 = n-n1-1;
+        arg_parser_default<type<I>>::parse(std::get<I>(x),str,n1);
+        if (n1!=n) parse_impl<I+1>(x,delim+1,n2);
       }
       template <size_t I> inline static enable_if_t<(I==size-1)>
-      parse_impl(T& x, siter_t begin, siter_t end) {
-        arg_parser_default<type<I>>::parse(std::get<I>(x),begin,end);
+      parse_impl(T& x, const char* str, size_t n) {
+        arg_parser_default<type<I>>::parse(std::get<I>(x),str,n);
       }
-      inline static void parse(T& x, siter_t first, siter_t last) {
-        parse_impl<0>(x,first,last);
+      inline static void parse(T& x, const char* str, size_t n) {
+        parse_impl<0>(x,str,n);
       }
-      inline static void parse(void* ptr, const std::string& str) {
-        parse_impl<0>(*reinterpret_cast<T*>(ptr), str.begin(), str.end() );
+      inline static void parse(void* ptr, const char* str, size_t n) {
+        parse_impl<0>(*reinterpret_cast<T*>(ptr),str,n);
       }
     };
 
     // containters
     template <typename T>
     struct arg_parser_default<T, enable_if_t<can_emplace<T>::value>> {
-      inline static void parse(T& xx, siter_t begin, siter_t end) {
+      inline static void parse(T& xx, const char* str, size_t n) {
         typename can_emplace<T>::type x;
-        arg_parser_default<decltype(x)>::parse(x,begin,end);
+        arg_parser_default<decltype(x)>::parse(x,str,n);
         can_emplace<T>::emplace(&xx,std::move(x));
       }
-      inline static void parse(void* ptr, const std::string& str) {
-        parse(*reinterpret_cast<T*>(ptr),str.begin(),str.end());
+      inline static void parse(void* ptr, const char* str, size_t n) {
+        parse(*reinterpret_cast<T*>(ptr),str,n);
       }
     };
 
     template <typename T, typename Parser>
     struct arg_parser {
       Parser parser;
-      inline void parse(void* ptr, const std::string& str) const {
-        parser(reinterpret_cast<T*>(ptr),str);
+      inline void parse(void* ptr, const char* str, size_t n) const {
+        parser(reinterpret_cast<T*>(ptr),str,n);
       }
     };
 
@@ -179,8 +186,8 @@ namespace ivanp { namespace args_parse {
     template <typename T>
     struct arg_proxy: arg_proxy_base, arg_parser_default<T> {
       using arg_proxy_base::arg_proxy_base;
-      virtual void parse(const std::string& str) const {
-        arg_parser_default<T>::parse(arg_proxy_base::ptr, str);
+      virtual void parse(const char* str, size_t n) const {
+        arg_parser_default<T>::parse(arg_proxy_base::ptr,str,n);
       }
     };
 
@@ -201,8 +208,8 @@ namespace ivanp { namespace args_parse {
       arg_proxy_p(void* ptr, flags_t flags, Func&& parser)
       : arg_proxy_base(ptr, flags),
         arg_parser<T,Parser>{std::forward<Func>(parser)} { }
-      virtual void parse(const std::string& str) const {
-        arg_parser<T,Parser>::parse(arg_proxy_base::ptr,str);
+      virtual void parse(const char* str, size_t n) const {
+        arg_parser<T,Parser>::parse(arg_proxy_base::ptr,str,n);
       }
     };
 
@@ -218,8 +225,8 @@ namespace ivanp { namespace args_parse {
       virtual void assign_default() const {
         arg_value<T,Args...>::assign_default(arg_proxy_base::ptr);
       }
-      virtual void parse(const std::string& str) const {
-        arg_parser<T,Parser>::parse(arg_proxy_base::ptr,str);
+      virtual void parse(const char* str, size_t n) const {
+        arg_parser<T,Parser>::parse(arg_proxy_base::ptr,str,n);
       }
     };
 
@@ -232,7 +239,7 @@ namespace ivanp { namespace args_parse {
 
     template <typename S1, typename S2, typename Func, typename T>
     using call_enable_p_t = enable_if_t<
-      is_callable<Func,T*,const std::string&>::value,
+      is_callable<Func,T*,const char*,size_t>::value,
     call_enable_t<S1,S2> >;
 
     template <typename S1, typename S2, typename Arg, typename T>
