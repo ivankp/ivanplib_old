@@ -6,7 +6,8 @@
 
 template <typename... TT> struct show_type;
 
-#define ARGS_PARSE_USE_BOOST_LEXICAL_CAST
+//#define ARGS_PARSE_USE_BOOST_LEXICAL_CAST
+//#define ARGS_PARSE_USE_BOOST_STRING_REF
 #include "args_parse.hh"
 
 #include "test_class.hh"
@@ -52,9 +53,10 @@ int main(int argc, const char* argv[])
       ("d,double",&d,"double", 5.5)
       ("s,string",&str,"string", str1)
       ("i,int",&i,"int", -1,
+        // [](int* i, boost::string_ref str){
         [](int* i, const char* str, size_t n){
           (*i) = n;
-        }/*,ap::required*/)
+        },ap::required)
       ("v,vec",&v,"vector")
       ("m,map",&m,"map",
         ap::no_default,

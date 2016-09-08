@@ -8,22 +8,29 @@
 #include <algorithm>
 #include <string>
 #include <tuple>
-#include <vector>
+#include <list>
 #include <map>
 #include <stdexcept>
+#include <iostream>
 
 #ifdef ARGS_PARSE_USE_BOOST_LEXICAL_CAST
-#include <boost/lexical_cast.hpp>
+  #include <boost/lexical_cast.hpp>
 #else
-#include <iostream>
-#include <streambuf>
+  #include <streambuf>
+#endif
+
+#if defined(ARGS_PARSE_USE_BOOST_STRING_REF)
+  #include <boost/utility/string_ref.hpp>
+#elif defined(ARGS_PARSE_USE_BOOST_STRING_VIEW)
+  #include <boost/utility/string_view.hpp>
+#elif defined(ARGS_PARSE_USE_STD_EXP_STRING_VIEW)
+  #include <experimental/string_view>
 #endif
 
 #include "extra_traits.hh"
 #include "expression_traits.hh"
 #include "emplace_traits.hh"
 
-// TODO: switch to char*
 // TODO: write the algorithm
 // TODO: positional arguments
 // TODO: check for temporary copies with containers
@@ -47,6 +54,7 @@ namespace ivanp { namespace args_parse {
     // arg_proxy_base -----------------------------------------------
     struct arg_proxy_base {
       void* ptr;
+      std::string *str;
       flags_t flags;
       int count;
 
@@ -160,13 +168,35 @@ namespace ivanp { namespace args_parse {
       }
     };
 
-    template <typename T, typename Parser>
+    template <typename T, typename Parser, typename = void>
     struct arg_parser {
       Parser parser;
       inline void parse(void* ptr, const char* str, size_t n) const {
         parser(reinterpret_cast<T*>(ptr),str,n);
       }
     };
+
+    #if defined(ARGS_PARSE_USE_BOOST_STRING_REF) || \
+        defined(ARGS_PARSE_USE_BOOST_STRING_VIEW) || \
+        defined(ARGS_PARSE_USE_STD_EXP_STRING_VIEW)
+
+    template <typename T, typename Parser>
+    struct arg_parser<T,Parser,enable_if_t<
+      #if defined(ARGS_PARSE_USE_BOOST_STRING_REF)
+        is_callable<Parser,T*,boost::string_ref>::value
+      #elif defined(ARGS_PARSE_USE_BOOST_STRING_VIEW)
+        is_callable<Parser,T*,boost::string_view>::value
+      #elif defined(ARGS_PARSE_USE_STD_EXP_STRING_VIEW)
+        is_callable<Parser,T*,std::experimental::string_view>::value
+      #endif
+    > > {
+      Parser parser;
+      inline void parse(void* ptr, const char* str, size_t n) const {
+        parser(reinterpret_cast<T*>(ptr),{str,n});
+      }
+    };
+
+    #endif
 
     // arg_flags ----------------------------------------------------
     template <typename T, typename = void>
@@ -239,8 +269,15 @@ namespace ivanp { namespace args_parse {
 
     template <typename S1, typename S2, typename Func, typename T>
     using call_enable_p_t = enable_if_t<
-      is_callable<Func,T*,const char*,size_t>::value,
-    call_enable_t<S1,S2> >;
+      is_callable<Func,T*,const char*,size_t>::value
+      #if defined(ARGS_PARSE_USE_BOOST_STRING_REF)
+        || is_callable<Func,T*,boost::string_ref>::value
+      #elif defined(ARGS_PARSE_USE_BOOST_STRING_VIEW)
+        || is_callable<Func,T*,boost::string_view>::value
+      #elif defined(ARGS_PARSE_USE_STD_EXP_STRING_VIEW)
+        || is_callable<Func,T*,std::experimental::string_view>::value
+      #endif
+    , call_enable_t<S1,S2> >;
 
     template <typename S1, typename S2, typename Arg, typename T>
     using call_enable_v1_t = enable_if_t<
@@ -254,10 +291,13 @@ namespace ivanp { namespace args_parse {
     >>::type;
 
     // argmap -------------------------------------------------------
+    bool no_args_help;
+    std::string help_opt;
+
     std::vector<arg_proxy_base*> arg_proxies;
     std::map<std::string,arg_proxy_base*> long_argmap;
     std::map<char,arg_proxy_base*> short_argmap;
-    std::vector<std::pair<std::string,std::string>> arg_descs;
+    std::list<std::pair<std::string,std::string>> arg_descs;
 
     template <typename S1, typename S2>
     void add_arg(S1&& opt, S2&& desc, arg_proxy_base* proxy) {
@@ -284,12 +324,16 @@ namespace ivanp { namespace args_parse {
         j = opts.find(',',i=j+1);
       }
       arg_descs.emplace_back(std::move(opts),std::forward<S2>(desc));
+      proxy->str = &arg_descs.back().first;
     }
 
   public:
-    args_parse() = default;
+    args_parse(): no_args_help(false) { }
     args_parse& parse(int argc, char const * const * argv);
     ~args_parse() { for (auto* proxy : arg_proxies) delete proxy; }
+
+    args_parse& help(std::string opt="h,help", bool no_args_help=false);
+    void print_help(std::ostream& os) const;
 
     // call operators -----------------------------------------------
     template <typename T, typename S1, typename S2>
