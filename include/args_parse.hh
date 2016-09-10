@@ -19,20 +19,15 @@
   #include <streambuf>
 #endif
 
-#if defined(ARGS_PARSE_USE_BOOST_STRING_REF)
-  #include <boost/utility/string_ref.hpp>
-#elif defined(ARGS_PARSE_USE_BOOST_STRING_VIEW)
-  #include <boost/utility/string_view.hpp>
-#elif defined(ARGS_PARSE_USE_STD_EXP_STRING_VIEW)
-  #include <experimental/string_view>
-#endif
-
 #include "extra_traits.hh"
 #include "expression_traits.hh"
 #include "emplace_traits.hh"
 
 // TODO: write the algorithm
 // TODO: positional arguments
+// TODO: multivalue
+
+// TODO: help
 // TODO: check for temporary copies with containers
 
 // TODO: default functors
@@ -51,12 +46,22 @@ namespace ivanp { namespace args_parse {
   constexpr no_default_t no_default;
 
   class args_parse {
+    struct arg_proxy_base;
+
+    bool no_args_help;
+    std::string help_opt;
+
+    std::vector<arg_proxy_base*> arg_proxies;
+    std::map<std::string,arg_proxy_base*> long_argmap;
+    std::map<char,arg_proxy_base*> short_argmap;
+    std::list<std::pair<std::string,std::string>> arg_descs;
+
     // arg_proxy_base -----------------------------------------------
     struct arg_proxy_base {
       void* ptr;
-      std::string *str;
       flags_t flags;
       int count;
+      decltype(arg_descs)::const_pointer opt;
 
       arg_proxy_base(void* ptr, flags_t flags)
       : ptr(ptr), flags(flags), count(0) { }
@@ -124,6 +129,7 @@ namespace ivanp { namespace args_parse {
           std::istream(&buf) >> x;
         #endif
       }
+      [[ gnu::flatten ]]
       inline static void parse(void* ptr, const char* str, size_t n) {
         parse(*reinterpret_cast<T*>(ptr),str,n);
       }
@@ -135,7 +141,8 @@ namespace ivanp { namespace args_parse {
       enum { size = std::tuple_size<T>::value };
       template <size_t I> using type = tuple_element_t<I,T>;
 
-      template <size_t I> inline static enable_if_t<(I<size-1)>
+      template <size_t I>
+      [[ gnu::flatten ]] inline static enable_if_t<(I<size-1)>
       parse_impl(T& x, const char* str, size_t n) {
         const char* delim = std::find(str,str+n,':');
         const size_t n1 = delim-str;
@@ -143,13 +150,16 @@ namespace ivanp { namespace args_parse {
         arg_parser_default<type<I>>::parse(std::get<I>(x),str,n1);
         if (n1!=n) parse_impl<I+1>(x,delim+1,n2);
       }
-      template <size_t I> inline static enable_if_t<(I==size-1)>
+      template <size_t I>
+      [[ gnu::flatten ]] inline static enable_if_t<(I==size-1)>
       parse_impl(T& x, const char* str, size_t n) {
         arg_parser_default<type<I>>::parse(std::get<I>(x),str,n);
       }
+      [[ gnu::flatten ]]
       inline static void parse(T& x, const char* str, size_t n) {
         parse_impl<0>(x,str,n);
       }
+      [[ gnu::flatten ]]
       inline static void parse(void* ptr, const char* str, size_t n) {
         parse_impl<0>(*reinterpret_cast<T*>(ptr),str,n);
       }
@@ -158,45 +168,60 @@ namespace ivanp { namespace args_parse {
     // containters
     template <typename T>
     struct arg_parser_default<T, enable_if_t<can_emplace<T>::value>> {
+      [[ gnu::flatten ]]
       inline static void parse(T& xx, const char* str, size_t n) {
         typename can_emplace<T>::type x;
         arg_parser_default<decltype(x)>::parse(x,str,n);
         can_emplace<T>::emplace(&xx,std::move(x));
       }
+      [[ gnu::flatten ]]
       inline static void parse(void* ptr, const char* str, size_t n) {
         parse(*reinterpret_cast<T*>(ptr),str,n);
       }
     };
 
-    template <typename T, typename Parser, typename = void>
-    struct arg_parser {
-      Parser parser;
-      inline void parse(void* ptr, const char* str, size_t n) const {
-        parser(reinterpret_cast<T*>(ptr),str,n);
-      }
+    // user parser
+    template <typename P, typename T> struct is_parser_direct {
+      typedef char yes;
+      typedef char no[2];
+      template <typename P1, typename T1> static auto f(P1&& p, T* x)
+      -> decltype( p(x,std::declval<const char*>(),size_t()), yes() );
+      template <typename P1, typename T1> static no& f(...);
+      enum { value = sizeof(f<P,T>(std::declval<P>(),std::declval<T*>()))
+                  == sizeof(yes) };
+    };
+    template <typename P, typename T> struct is_parser_view {
+      typedef char yes;
+      typedef char no[2];
+      template <typename P1, typename T1> static auto f(P1&& p, T* x)
+      -> decltype( p(x,{std::declval<const char*>(),size_t()}), yes() );
+      template <typename P1, typename T1> static no& f(...);
+      enum { value = sizeof(f<P,T>(std::declval<P>(),std::declval<T*>()))
+                  == sizeof(yes) };
+    };
+    template <typename P, typename T> struct is_parser {
+      enum { value = is_parser_direct<P,T>::value
+                  || is_parser_view<P,T>::value };
     };
 
-    #if defined(ARGS_PARSE_USE_BOOST_STRING_REF) || \
-        defined(ARGS_PARSE_USE_BOOST_STRING_VIEW) || \
-        defined(ARGS_PARSE_USE_STD_EXP_STRING_VIEW)
-
-    template <typename T, typename Parser>
-    struct arg_parser<T,Parser,enable_if_t<
-      #if defined(ARGS_PARSE_USE_BOOST_STRING_REF)
-        is_callable<Parser,T*,boost::string_ref>::value
-      #elif defined(ARGS_PARSE_USE_BOOST_STRING_VIEW)
-        is_callable<Parser,T*,boost::string_view>::value
-      #elif defined(ARGS_PARSE_USE_STD_EXP_STRING_VIEW)
-        is_callable<Parser,T*,std::experimental::string_view>::value
-      #endif
-    > > {
+    template <typename T, typename Parser, typename = void>
+    struct arg_parser { // for string_view
       Parser parser;
+      [[ gnu::flatten ]]
       inline void parse(void* ptr, const char* str, size_t n) const {
         parser(reinterpret_cast<T*>(ptr),{str,n});
       }
     };
 
-    #endif
+    template <typename T, typename Parser>
+    struct arg_parser<T,Parser,enable_if_t<is_parser_direct<Parser,T>::value>>
+    { // for direct call with pointer and size
+      Parser parser;
+      [[ gnu::flatten ]]
+      inline void parse(void* ptr, const char* str, size_t n) const {
+        parser(reinterpret_cast<T*>(ptr),str,n);
+      }
+    };
 
     // arg_flags ----------------------------------------------------
     template <typename T, typename = void>
@@ -207,8 +232,8 @@ namespace ivanp { namespace args_parse {
       static constexpr auto value = flags_t::multiple;
     };
 
-    template <typename T>
-    inline flags_t arg_flags(flags_t flags) const noexcept {
+    template <typename T> [[ gnu::const ]]
+    static inline flags_t arg_flags(flags_t flags) noexcept {
       return static_cast<flags_t>(flags | arg_flags_impl<T>::value);
     }
 
@@ -269,15 +294,7 @@ namespace ivanp { namespace args_parse {
 
     template <typename S1, typename S2, typename Func, typename T>
     using call_enable_p_t = enable_if_t<
-      is_callable<Func,T*,const char*,size_t>::value
-      #if defined(ARGS_PARSE_USE_BOOST_STRING_REF)
-        || is_callable<Func,T*,boost::string_ref>::value
-      #elif defined(ARGS_PARSE_USE_BOOST_STRING_VIEW)
-        || is_callable<Func,T*,boost::string_view>::value
-      #elif defined(ARGS_PARSE_USE_STD_EXP_STRING_VIEW)
-        || is_callable<Func,T*,std::experimental::string_view>::value
-      #endif
-    , call_enable_t<S1,S2> >;
+      is_parser<Func,T>::value, call_enable_t<S1,S2> >;
 
     template <typename S1, typename S2, typename Arg, typename T>
     using call_enable_v1_t = enable_if_t<
@@ -291,14 +308,6 @@ namespace ivanp { namespace args_parse {
     >>::type;
 
     // argmap -------------------------------------------------------
-    bool no_args_help;
-    std::string help_opt;
-
-    std::vector<arg_proxy_base*> arg_proxies;
-    std::map<std::string,arg_proxy_base*> long_argmap;
-    std::map<char,arg_proxy_base*> short_argmap;
-    std::list<std::pair<std::string,std::string>> arg_descs;
-
     template <typename S1, typename S2>
     void add_arg(S1&& opt, S2&& desc, arg_proxy_base* proxy) {
       arg_proxies.push_back(proxy);
@@ -324,7 +333,7 @@ namespace ivanp { namespace args_parse {
         j = opts.find(',',i=j+1);
       }
       arg_descs.emplace_back(std::move(opts),std::forward<S2>(desc));
-      proxy->str = &arg_descs.back().first;
+      proxy->opt = &arg_descs.back();
     }
 
   public:
@@ -332,8 +341,8 @@ namespace ivanp { namespace args_parse {
     args_parse& parse(int argc, char const * const * argv);
     ~args_parse() { for (auto* proxy : arg_proxies) delete proxy; }
 
-    args_parse& help(std::string opt="h,help", bool no_args_help=false);
-    void print_help(std::ostream& os) const;
+//    args_parse& help(std::string opt="h,help", bool no_args_help=false);
+//    void print_help(std::ostream& os) const;
 
     // call operators -----------------------------------------------
     template <typename T, typename S1, typename S2>

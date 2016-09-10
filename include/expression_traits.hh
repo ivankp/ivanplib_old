@@ -53,6 +53,7 @@ DEFINE_BINARY_TRAIT(has_op_plus_eq, x1+=x2)
 DEFINE_BINARY_TRAIT(has_op_minus_eq, x1-=x2)
 
 DEFINE_VARIADIC_TRAIT(is_callable, x(xx...))
+DEFINE_VARIADIC_TRAIT(is_constructible, T(xx...))
 
 } // end namespace
 

@@ -29,7 +29,7 @@ all: $(EXES)
 
 test/args_parse: $(BLD)/args_parse_src.o
 
-$(BLD)/args_parse_src.o: src/args_parse.cc
+$(BLD)/args_parse_src.o: src/args_parse.cc include/args_parse.hh
 
 #Don't create dependencies when we're cleaning, for instance
 ifeq (0, $(words $(findstring $(MAKECMDGOALS), $(NODEPS))))
