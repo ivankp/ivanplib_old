@@ -49,11 +49,11 @@ int main(int argc, const char* argv[])
   foo f;
 
   try {
-    ap::args_parse()
-      ("l,long",&l,"long"/*,ap::required*/)
+    ap::args_parse p;
+    p ("l,long",&l,"long"/*,ap::required*/)
       ("d,double",&d,"double", 5.5)
       ("s,string",&str,"string", str1)
-      ("i,int",&i,"int", -1,
+      ("i",&i,"int", -1,
         [](int* i, boost::string_ref str){
         // [](int* i, const char* str, size_t n){
           (*i) = str.size();
@@ -99,7 +99,9 @@ int main(int argc, const char* argv[])
         [](foo* f, const char* str, size_t n){
           *f = {str,n};
         })
-      .parse(argc,argv);
+      ;
+      if (p.help(argc,argv,"h")) return 0;
+      p.parse(argc,argv);
   } catch ( std::exception& e ) {
     std::cerr << "\033[31margs:\033[0m " << e.what() << std::endl;
     return 1;

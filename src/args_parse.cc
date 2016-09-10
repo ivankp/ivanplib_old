@@ -6,37 +6,11 @@
 
 namespace ivanp { namespace args_parse {
 
-//args_parse& help(std::string opt, bool no_args_help) {
-//  if (opt.size()==0) {
-//    this->no_args_help = true;
-//  } else {
-//    help_opt = std::move(opt);
-//    this->no_args_help = no_args_help;
-//  }
-//}
+// TODO: bug: treat only short options correctly
 
 args_parse& args_parse::parse(int argc, char const * const * argv) {
-//  if (no_args_help && argc==1) {
-//    print_help();
-//    return *this;
-//  } else if (help_opt.size()) {
-
-//    for (size_t i=0, j=help_opt.find(','); ; ) {
-//      const size_t n = j-i;
-
-//      for (int i=1; i<argc; ++i) {
-//        if (!strcmp(argv[i])) {
-
-//        }
-//      }
-
-//      if (j==std::string::npos) break;
-//      j = help_opt.find(',',i=j+1);
-//    }
-
-//  }
-
   arg_proxy_base* opt = nullptr;
+
   for (int i=1; i<argc; ++i) {
     const auto len = strlen(argv[i]);
     if (len>0 && argv[i][0]=='-') { // option
@@ -73,6 +47,74 @@ args_parse& args_parse::parse(int argc, char const * const * argv) {
   }
 
   return *this;
+}
+
+bool args_parse::help(int argc, char const * const * argv,
+                      std::string str, bool no_args_help,
+                      std::ostream& os) const
+{
+  if (no_args_help && argc==1) {
+    print_help(str,os);
+    return true;
+  } else if (str.size()) {
+
+    for (int k=1; k<argc; ++k) {
+      for (size_t i=0, j=str.find(','); ; ) {
+        const unsigned n = j-i;
+        const auto len = strlen(argv[k]);
+        static bool need_help = false;
+
+        switch (len) {
+          case 0: break;
+          case 1: break;
+          case 2: need_help = (
+            argv[k][0]=='-' && n==1 && str[i]==argv[k][1] );
+            break;
+          default: need_help = ( argv[k][0]=='-' && argv[k][1]=='-'
+            && !strcmp(&str[i],argv[k]+2) );
+        }
+
+        if (need_help) {
+          print_help(str,os);
+          return true;
+        }
+
+        if (j==std::string::npos) break;
+        j = str.find(',',i=j+1);
+      }
+    }
+
+  }
+  return false;
+}
+
+void args_parse::print_help(const std::string& str, std::ostream& os) const {
+  for (auto& p : arg_descs) {
+    arg_proxy_base* opt = nullptr;
+
+    os << "    \e[1m";
+    for (size_t i=0, j=p.first.find(','); ; ) {
+      const size_t n = j-i;
+
+      if (!opt) {
+        opt = ( n==1 ? short_argmap.at(p.first[i])
+                     : long_argmap.at(p.first.substr(i,n)) );
+      }
+
+      os << '-';
+      if (n>1) os << '-';
+      os << p.first.substr(i,n);
+
+      if (j==std::string::npos) break;
+      else os << ", ";
+      j = str.find(',',i=j+1);
+    }
+
+    // print flags
+    if (opt->flags & flags_t::required) os << " *";
+
+    os << "\e[0m\n        " << p.second << "\n" << std::endl;
+  }
 }
 
 }} // end namespace

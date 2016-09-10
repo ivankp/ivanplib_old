@@ -29,6 +29,7 @@
 
 // TODO: help
 // TODO: check for temporary copies with containers
+// TODO: avoid copying option & description strings
 
 // TODO: default functors
 // TODO: implement by-element parser passing
@@ -47,9 +48,6 @@ namespace ivanp { namespace args_parse {
 
   class args_parse {
     struct arg_proxy_base;
-
-    bool no_args_help;
-    std::string help_opt;
 
     std::vector<arg_proxy_base*> arg_proxies;
     std::map<std::string,arg_proxy_base*> long_argmap;
@@ -232,7 +230,7 @@ namespace ivanp { namespace args_parse {
       static constexpr auto value = flags_t::multiple;
     };
 
-    template <typename T> [[ gnu::const ]]
+    template <typename T> [[ gnu::pure ]]
     static inline flags_t arg_flags(flags_t flags) noexcept {
       return static_cast<flags_t>(flags | arg_flags_impl<T>::value);
     }
@@ -298,8 +296,7 @@ namespace ivanp { namespace args_parse {
 
     template <typename S1, typename S2, typename Arg, typename T>
     using call_enable_v1_t = enable_if_t<
-      std::is_convertible<Arg,T>::value,
-    call_enable_t<S1,S2> >;
+      std::is_convertible<Arg,T>::value, call_enable_t<S1,S2> >;
 
     template <typename S1, typename S2, typename Arg, typename Func, typename T>
     using call_enable_v1p_t = typename std::tuple_element<0,std::pair<
@@ -337,12 +334,14 @@ namespace ivanp { namespace args_parse {
     }
 
   public:
-    args_parse(): no_args_help(false) { }
+    args_parse() = default;
     args_parse& parse(int argc, char const * const * argv);
     ~args_parse() { for (auto* proxy : arg_proxies) delete proxy; }
 
-//    args_parse& help(std::string opt="h,help", bool no_args_help=false);
-//    void print_help(std::ostream& os) const;
+    bool help(int argc, char const * const * argv,
+              std::string str="h,help", bool no_args_help=true,
+              std::ostream& os = std::cout) const;
+    void print_help(const std::string& str, std::ostream& os = std::cout) const;
 
     // call operators -----------------------------------------------
     template <typename T, typename S1, typename S2>
