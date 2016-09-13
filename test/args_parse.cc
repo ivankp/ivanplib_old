@@ -100,10 +100,11 @@ int main(int argc, const char* argv[])
           *f = {str,n};
         })
       ;
-      if (p.help(argc,argv,"h")) return 0;
+      if (p.help(argc,argv)) return 0;
       p.parse(argc,argv);
   } catch ( std::exception& e ) {
-    std::cerr << "\033[31margs:\033[0m " << e.what() << std::endl;
+    std::cerr << "\033[0m\033[1m\n\033[31margs:\033[0m "
+              << e.what() << std::endl;
     return 1;
   }
 

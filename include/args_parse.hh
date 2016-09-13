@@ -310,6 +310,7 @@ namespace ivanp { namespace args_parse {
       arg_proxies.push_back(proxy);
       std::string opts(std::forward<S1>(opt));
       for (size_t i=0, j=opts.find(','); ; ) {
+        if (j==std::string::npos) j = opts.size();
         const size_t n = j-i;
 
         if (n==1) {
@@ -326,7 +327,7 @@ namespace ivanp { namespace args_parse {
               "duplicate option: "+opts.substr(i,n));
         }
 
-        if (j==std::string::npos) break;
+        if (j==opts.size()) break;
         j = opts.find(',',i=j+1);
       }
       arg_descs.emplace_back(std::move(opts),std::forward<S2>(desc));
@@ -339,7 +340,7 @@ namespace ivanp { namespace args_parse {
     ~args_parse() { for (auto* proxy : arg_proxies) delete proxy; }
 
     bool help(int argc, char const * const * argv,
-              std::string str="h,help", bool no_args_help=true,
+              const std::string& str="h,help", bool no_args_help=true,
               std::ostream& os = std::cout) const;
     void print_help(const std::string& str, std::ostream& os = std::cout) const;
 

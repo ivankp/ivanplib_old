@@ -6,8 +6,6 @@
 
 namespace ivanp { namespace args_parse {
 
-// TODO: bug: treat only short options correctly
-
 args_parse& args_parse::parse(int argc, char const * const * argv) {
   arg_proxy_base* opt = nullptr;
 
@@ -50,7 +48,7 @@ args_parse& args_parse::parse(int argc, char const * const * argv) {
 }
 
 bool args_parse::help(int argc, char const * const * argv,
-                      std::string str, bool no_args_help,
+                      const std::string& str, bool no_args_help,
                       std::ostream& os) const
 {
   if (no_args_help && argc==1) {
@@ -59,9 +57,11 @@ bool args_parse::help(int argc, char const * const * argv,
   } else if (str.size()) {
 
     for (int k=1; k<argc; ++k) {
+      const auto len = strlen(argv[k]);
+
       for (size_t i=0, j=str.find(','); ; ) {
+        if (j==std::string::npos) j = str.size();
         const unsigned n = j-i;
-        const auto len = strlen(argv[k]);
         static bool need_help = false;
 
         switch (len) {
@@ -70,7 +70,7 @@ bool args_parse::help(int argc, char const * const * argv,
           case 2: need_help = (
             argv[k][0]=='-' && n==1 && str[i]==argv[k][1] );
             break;
-          default: need_help = ( argv[k][0]=='-' && argv[k][1]=='-'
+          default: need_help = ( argv[k][0]=='-' && argv[k][1]=='-' && n>1
             && !strcmp(&str[i],argv[k]+2) );
         }
 
@@ -79,7 +79,7 @@ bool args_parse::help(int argc, char const * const * argv,
           return true;
         }
 
-        if (j==std::string::npos) break;
+        if (j==str.size()) break;
         j = str.find(',',i=j+1);
       }
     }
@@ -94,18 +94,23 @@ void args_parse::print_help(const std::string& str, std::ostream& os) const {
 
     os << "    \e[1m";
     for (size_t i=0, j=p.first.find(','); ; ) {
+      if (j==std::string::npos) j = p.first.size();
       const size_t n = j-i;
 
       if (!opt) {
-        opt = ( n==1 ? short_argmap.at(p.first[i])
-                     : long_argmap.at(p.first.substr(i,n)) );
+        try {
+          opt = ( n==1 ? short_argmap.at(p.first[i])
+                       : long_argmap.at(p.first.substr(i,n)) );
+        } catch ( std::exception& e ) { throw std::runtime_error(
+          e.what() + (" \e[1m" + p.first.substr(i,n) + "\e[0m")
+        ); }
       }
 
       os << '-';
       if (n>1) os << '-';
       os << p.first.substr(i,n);
 
-      if (j==std::string::npos) break;
+      if (j==p.first.size()) break;
       else os << ", ";
       j = str.find(',',i=j+1);
     }
