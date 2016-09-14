@@ -247,35 +247,35 @@ namespace ivanp { namespace args_parse {
     template <typename T>
     struct arg_proxy: arg_proxy_base, arg_parser_default<T> {
       using arg_proxy_base::arg_proxy_base;
-      virtual void parse(const char* str, size_t n) const {
+      virtual void parse(const char* str, size_t n) const override {
         arg_parser_default<T>::parse(arg_proxy_base::ptr,str,n);
       }
     };
 
     template <typename T, typename... Args>
-    struct arg_proxy_v: arg_proxy<T>, arg_value<T,Args...> {
+    struct arg_proxy_v final: arg_proxy<T>, arg_value<T,Args...> {
       template <typename Tuple>
       arg_proxy_v(void* ptr, flags_t flags, Tuple&& args)
       : arg_proxy<T>(ptr, flags),
         arg_value<T,Args...>{std::forward<Tuple>(args)} { }
-      virtual void assign_default() const {
+      virtual void assign_default() const final override {
         arg_value<T,Args...>::assign_default(arg_proxy_base::ptr);
       }
     };
 
     template <typename T, typename Parser>
-    struct arg_proxy_p: arg_proxy_base, arg_parser<T,Parser> {
+    struct arg_proxy_p final: arg_proxy_base, arg_parser<T,Parser> {
       template <typename Func>
       arg_proxy_p(void* ptr, flags_t flags, Func&& parser)
       : arg_proxy_base(ptr, flags),
         arg_parser<T,Parser>{std::forward<Func>(parser)} { }
-      virtual void parse(const char* str, size_t n) const {
+      virtual void parse(const char* str, size_t n) const final override {
         arg_parser<T,Parser>::parse(arg_proxy_base::ptr,str,n);
       }
     };
 
     template <typename T, typename Parser, typename... Args>
-    struct arg_proxy_vp: arg_proxy_base, arg_value<T,Args...>,
+    struct arg_proxy_vp final: arg_proxy_base, arg_value<T,Args...>,
       arg_parser<T,Parser>
     {
       template <typename Tuple, typename Func>
@@ -283,10 +283,10 @@ namespace ivanp { namespace args_parse {
       : arg_proxy_base(ptr, flags),
         arg_value<T,Args...>{std::forward<Tuple>(args)},
         arg_parser<T,Parser>{std::forward<Func>(parser)} { }
-      virtual void assign_default() const {
+      virtual void assign_default() const final override {
         arg_value<T,Args...>::assign_default(arg_proxy_base::ptr);
       }
-      virtual void parse(const char* str, size_t n) const {
+      virtual void parse(const char* str, size_t n) const final override {
         arg_parser<T,Parser>::parse(arg_proxy_base::ptr,str,n);
       }
     };
@@ -350,8 +350,8 @@ namespace ivanp { namespace args_parse {
 
     bool help(int argc, char const * const * argv,
               const std::string& str="h,help", bool no_args_help=true,
-              std::ostream& os = std::cout) const;
-    void print_help(const std::string& str, std::ostream& os = std::cout) const;
+              std::ostream& os=std::cout) const;
+    void print_help(const std::string& str, std::ostream& os=std::cout) const;
 
     args_parse& pos(const char* str, size_t n, unsigned i=1);
     args_parse& pos(const char* str, unsigned i=1);
