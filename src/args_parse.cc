@@ -26,11 +26,20 @@ args_parse& args_parse::parse(int argc, char const * const * argv) {
         std::string("unexpected program argument: \e[1m").append(argv[i],len)
         + "\e[0m");
     } else { // value
-      if ( !(opt->flags & multiple) && opt->count ) throw std::runtime_error(
-          std::string("unique option \e[1m").append(argv[i],len)
+      if (!opt) {
+        if (!positional.size()) throw std::runtime_error(
+          std::string("argument without option: ").append(argv[i],len)
+        );
+        opt = positional.front();
+        if (opt->pos) positional.pop();
+      }
+      const bool is_unique = !(opt->flags & multiple);
+      if ( is_unique && opt->count ) throw std::runtime_error(
+          "unique option \e[1m" + opt->opt->first
           + "\e[0m passed more than once");
       ++opt->count;
       opt->parse(argv[i],len);
+      if (is_unique) opt = nullptr;
     }
   }
 
@@ -44,6 +53,19 @@ args_parse& args_parse::parse(int argc, char const * const * argv) {
     if (opt->count==0) opt->assign_default();
   }
 
+  return *this;
+}
+
+args_parse& args_parse::pos(const char* str, unsigned i) {
+  return pos(str, strlen(str), i);
+}
+
+args_parse& args_parse::pos(const char* str, size_t n, unsigned i) {
+  positional.push( n==1 ? short_argmap.at(str[0]) : long_argmap.at({str,n}) );
+  auto* opt = positional.back();
+  opt->flags |= flags_t::positional;
+  if (i) opt->pos = positional.size();
+  for (unsigned j=1; j<i; ++j) positional.push(opt);
   return *this;
 }
 
@@ -98,12 +120,8 @@ void args_parse::print_help(const std::string& str, std::ostream& os) const {
       const size_t n = j-i;
 
       if (!opt) {
-        try {
-          opt = ( n==1 ? short_argmap.at(p.first[i])
-                       : long_argmap.at(p.first.substr(i,n)) );
-        } catch ( std::exception& e ) { throw std::runtime_error(
-          e.what() + (" \e[1m" + p.first.substr(i,n) + "\e[0m")
-        ); }
+        opt = ( n==1 ? short_argmap.at(p.first[i])
+                     : long_argmap.at(p.first.substr(i,n)) );
       }
 
       os << '-';
@@ -117,6 +135,10 @@ void args_parse::print_help(const std::string& str, std::ostream& os) const {
 
     // print flags
     if (opt->flags & flags_t::required) os << " *";
+
+    if (opt->flags & flags_t::positional) {
+      os << " pos:" << opt->pos;
+    }
 
     os << "\e[0m\n        " << p.second << "\n" << std::endl;
   }

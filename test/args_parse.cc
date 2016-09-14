@@ -58,14 +58,14 @@ int main(int argc, const char* argv[])
         // [](int* i, const char* str, size_t n){
           (*i) = str.size();
           // (*i) = n;
-        },ap::required)
+        },ap::required).pos('i')
       ("v,vec",&v,"vector")
       ("m,map",&m,"map",
         ap::no_default,
         [](decltype(m)* m, const char* str, size_t n){
           const char* d = std::find(str,str+n,':');
-          (*m)[std::string(str,d-str)].emplace_back(d+1);
-        })
+          (*m)[std::string(str,d-str)].emplace_back(d<str+n ? d+1 : "");
+        }/*,ap::positional*/)
       ("a,arr",&a,"array", std::forward_as_tuple(1,2))
       ("t,tup",&t,"tuple",
         // ap::no_default,

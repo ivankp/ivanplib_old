@@ -9,6 +9,7 @@
 #include <string>
 #include <tuple>
 #include <list>
+#include <queue>
 #include <map>
 #include <stdexcept>
 #include <iostream>
@@ -23,11 +24,11 @@
 #include "expression_traits.hh"
 #include "emplace_traits.hh"
 
+// TODO: negative numbers
 // TODO: write the algorithm
-// TODO: positional arguments
 // TODO: multivalue
+// TODO: improve positional arguments
 
-// TODO: help
 // TODO: check for temporary copies with containers
 // TODO: avoid copying option & description strings
 
@@ -36,12 +37,24 @@
 
 namespace ivanp { namespace args_parse {
 
-  enum flags_t : unsigned short {
+  using flags_u = unsigned short;
+  enum flags_t : flags_u {
     none = 0,
     required = 1,
     multiple = 2,
-    multivalue = 4 // TODO: implement
+    multivalue = 4, // TODO: implement
+    positional = 8
   };
+
+  inline flags_t operator& (flags_t a, flags_t b) noexcept {
+    return (flags_t)( (flags_u)(a) & (flags_u)(b) );
+  }
+  inline flags_t operator| (flags_t a, flags_t b) noexcept {
+    return (flags_t)( (flags_u)(a) | (flags_u)(b) );
+  }
+  inline flags_t& operator|=(flags_t& a, flags_t b) noexcept {
+    return (flags_t&)( (flags_u&)(a) |= (flags_u)(b) );
+  }
 
   struct no_default_t { };
   constexpr no_default_t no_default;
@@ -53,16 +66,18 @@ namespace ivanp { namespace args_parse {
     std::map<std::string,arg_proxy_base*> long_argmap;
     std::map<char,arg_proxy_base*> short_argmap;
     std::list<std::pair<std::string,std::string>> arg_descs;
+    std::queue<arg_proxy_base*> positional;
+    // mutable arg_proxy_base *cur_opt; // MAYBE
 
     // arg_proxy_base -----------------------------------------------
     struct arg_proxy_base {
-      void* ptr;
+      void *ptr;
       flags_t flags;
-      int count;
+      unsigned count, pos;
       decltype(arg_descs)::const_pointer opt;
 
       arg_proxy_base(void* ptr, flags_t flags)
-      : ptr(ptr), flags(flags), count(0) { }
+      : ptr(ptr), flags(flags), count(0), pos(0) { }
 
       virtual void parse(const char* str, size_t n) const =0;
       virtual void assign_default() const { }
@@ -127,7 +142,6 @@ namespace ivanp { namespace args_parse {
           std::istream(&buf) >> x;
         #endif
       }
-      [[ gnu::flatten ]]
       inline static void parse(void* ptr, const char* str, size_t n) {
         parse(*reinterpret_cast<T*>(ptr),str,n);
       }
@@ -140,7 +154,7 @@ namespace ivanp { namespace args_parse {
       template <size_t I> using type = tuple_element_t<I,T>;
 
       template <size_t I>
-      [[ gnu::flatten ]] inline static enable_if_t<(I<size-1)>
+      inline static enable_if_t<(I<size-1)>
       parse_impl(T& x, const char* str, size_t n) {
         const char* delim = std::find(str,str+n,':');
         const size_t n1 = delim-str;
@@ -149,15 +163,13 @@ namespace ivanp { namespace args_parse {
         if (n1!=n) parse_impl<I+1>(x,delim+1,n2);
       }
       template <size_t I>
-      [[ gnu::flatten ]] inline static enable_if_t<(I==size-1)>
+      inline static enable_if_t<(I==size-1)>
       parse_impl(T& x, const char* str, size_t n) {
         arg_parser_default<type<I>>::parse(std::get<I>(x),str,n);
       }
-      [[ gnu::flatten ]]
       inline static void parse(T& x, const char* str, size_t n) {
         parse_impl<0>(x,str,n);
       }
-      [[ gnu::flatten ]]
       inline static void parse(void* ptr, const char* str, size_t n) {
         parse_impl<0>(*reinterpret_cast<T*>(ptr),str,n);
       }
@@ -166,13 +178,11 @@ namespace ivanp { namespace args_parse {
     // containters
     template <typename T>
     struct arg_parser_default<T, enable_if_t<can_emplace<T>::value>> {
-      [[ gnu::flatten ]]
       inline static void parse(T& xx, const char* str, size_t n) {
         typename can_emplace<T>::type x;
         arg_parser_default<decltype(x)>::parse(x,str,n);
         can_emplace<T>::emplace(&xx,std::move(x));
       }
-      [[ gnu::flatten ]]
       inline static void parse(void* ptr, const char* str, size_t n) {
         parse(*reinterpret_cast<T*>(ptr),str,n);
       }
@@ -205,7 +215,6 @@ namespace ivanp { namespace args_parse {
     template <typename T, typename Parser, typename = void>
     struct arg_parser { // for string_view
       Parser parser;
-      [[ gnu::flatten ]]
       inline void parse(void* ptr, const char* str, size_t n) const {
         parser(reinterpret_cast<T*>(ptr),{str,n});
       }
@@ -215,7 +224,6 @@ namespace ivanp { namespace args_parse {
     struct arg_parser<T,Parser,enable_if_t<is_parser_direct<Parser,T>::value>>
     { // for direct call with pointer and size
       Parser parser;
-      [[ gnu::flatten ]]
       inline void parse(void* ptr, const char* str, size_t n) const {
         parser(reinterpret_cast<T*>(ptr),str,n);
       }
@@ -232,7 +240,7 @@ namespace ivanp { namespace args_parse {
 
     template <typename T> [[ gnu::pure ]]
     static inline flags_t arg_flags(flags_t flags) noexcept {
-      return static_cast<flags_t>(flags | arg_flags_impl<T>::value);
+      return (flags | arg_flags_impl<T>::value);
     }
 
     // arg_proxy ----------------------------------------------------
@@ -332,6 +340,7 @@ namespace ivanp { namespace args_parse {
       }
       arg_descs.emplace_back(std::move(opts),std::forward<S2>(desc));
       proxy->opt = &arg_descs.back();
+      if (proxy->flags & flags_t::positional) positional.push(proxy);
     }
 
   public:
@@ -343,6 +352,14 @@ namespace ivanp { namespace args_parse {
               const std::string& str="h,help", bool no_args_help=true,
               std::ostream& os = std::cout) const;
     void print_help(const std::string& str, std::ostream& os = std::cout) const;
+
+    args_parse& pos(const char* str, size_t n, unsigned i=1);
+    args_parse& pos(const char* str, unsigned i=1);
+    inline args_parse& pos(char c, unsigned i=1) { return pos(&c,1,i); }
+    template <typename T>
+    args_parse& pos(T&& str, unsigned i=1) {
+      return pos(str.data(), str.size(), i);
+    }
 
     // call operators -----------------------------------------------
     template <typename T, typename S1, typename S2>
